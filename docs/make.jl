@@ -8,7 +8,7 @@ makedocs(;
     authors="Andrew <arosemberg3@gatech.edu> and contributors",
     sitename="L2OALM.jl",
     format=Documenter.HTML(;
-        canonical="https://andrewrosemberg.github.io/L2OALM.jl",
+        canonical="https://LearningToOptimize.github.io/L2OALM.jl",
         edit_link="main",
         assets=String[],
     ),
@@ -18,6 +18,6 @@ makedocs(;
 )
 
 deploydocs(;
-    repo="github.com/andrewrosemberg/L2OALM.jl",
+    repo="github.com/LearningToOptimize/L2OALM.jl",
     devbranch="main",
 )
