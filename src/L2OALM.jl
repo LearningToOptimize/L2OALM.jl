@@ -2,17 +2,6 @@ module L2OALM
 
 using BatchNLPKernels
 using ExaModels
-using KernelAbstractions
-using DifferentiationInterface
-const DI = DifferentiationInterface
-
-import Zygote
-import FiniteDifferences
-
-using PowerModels
-PowerModels.silence()
-using PGLib
-using LinearAlgebra
 
 using Lux
 using LuxCUDA
@@ -20,10 +9,8 @@ using Lux.Training
 using MLUtils
 using Optimisers
 using CUDA
-using Random
-import GPUArraysCore: @allowscalar
 
-using OpenCL, pocl_jll, AcceleratedKernels
+# using OpenCL, pocl_jll, AcceleratedKernels
 
 function LagrangianDualLoss(;max_dual=1e6)
     return (dual_model, ps_dual, st_dual, data) -> begin
