@@ -85,6 +85,18 @@ function LagrangianPrimalLoss(bm::BatchModel)
     end
 end
 
+"""
+    TrainingStepLoop
+
+A structure to define a training step loop for the L2O-ALM algorithm.
+
+Fields:
+- `loss_fn`: Function to compute the loss for the training step.
+- `stopping_criteria`: Vector of functions that determine when to stop the training loop.
+- `hyperparameters`: Dictionary of hyperparameters and hyper-states for the training step.
+- `parameter_update_fns`: Vector of functions to update hyperparameters after each training step.
+- `reconcile_state`: Function to reconcile the state after processing a batch of data.
+"""
 mutable struct TrainingStepLoop
     loss_fn::Function
     stopping_criteria::Vector{Function}
@@ -94,6 +106,12 @@ mutable struct TrainingStepLoop
     pre_hook::Function
 end
 
+"""
+    _pre_hook_primal(θ, primal_model, train_state_primal, dual_model, train_state_dual, bm)
+
+Default pre-hook function for the primal model in the L2O-ALM algorithm.
+This function performs a forward pass through the dual model to obtain the dual predictions.
+"""
 function _pre_hook_primal(θ, primal_model, train_state_primal, dual_model, train_state_dual, bm)
     # Forward pass for dual model
     dual_hat_k, _ = dual_model(θ, train_state_dual.parameters, train_state_dual.state)
@@ -101,6 +119,12 @@ function _pre_hook_primal(θ, primal_model, train_state_primal, dual_model, trai
     return (dual_hat_k,)
 end
 
+"""
+    _pre_hook_dual(θ, primal_model, train_state_primal, dual_model, train_state_dual, bm)
+
+Default pre-hook function for the dual model in the L2O-ALM algorithm.
+This function performs a forward pass through the primal model to obtain the predicted state and constraints.
+"""
 function _pre_hook_dual(θ, primal_model, train_state_primal, dual_model, train_state_dual, bm)
     # # Forward pass for primal model
     X̂, _ = primal_model(θ, train_state_primal.parameters, train_state_primal.state)
@@ -112,6 +136,13 @@ function _pre_hook_dual(θ, primal_model, train_state_primal, dual_model, train_
     return (dual_hat, gh,)
 end
 
+"""
+    _reconcile_alm_primal_state(batch_states::Vector{NamedTuple})
+
+Default function that reconciles the state of the primal model after processing a batch of data.
+This function computes the maximum violation, mean violations, mean objectives, and total loss
+from the batch states.
+"""
 function _reconcile_alm_primal_state(batch_states::Vector{NamedTuple})
     max_violation = maximum([s.new_max_violation for s in batch_states])
     mean_violations = mean([s.mean_violations for s in batch_states])
@@ -125,11 +156,23 @@ function _reconcile_alm_primal_state(batch_states::Vector{NamedTuple})
     )
 end
 
+"""
+    _reconcile_alm_dual_state(batch_states::Vector{NamedTuple})
+
+Default function that reconciles the state of the dual model after processing a batch of data.
+This function computes the mean dual loss from the batch states.
+"""
 function _reconcile_alm_dual_state(batch_states::Vector{NamedTuple})
     dual_loss = mean([s.dual_loss for s in batch_states])
     return (dual_loss=dual_loss,)
 end
 
+"""
+    _update_ALM_ρ!(hpm::Dict{Symbol, Any}, current_state::NamedTuple)
+
+Default function to update the hyperparameter ρ in the ALM algorithm.
+This function increases ρ by a factor of α if the new maximum violation exceeds τ times the previous maximum violation.
+"""
 function _update_ALM_ρ!(hpm::Dict{Symbol, Any}, current_state::NamedTuple)
     if current_state.new_max_violation > hpm.τ * hpm.max_violation
         hpm.ρ = min(hpm.ρmax, hpm.ρ * hpm.α)
@@ -138,6 +181,11 @@ function _update_ALM_ρ!(hpm::Dict{Symbol, Any}, current_state::NamedTuple)
     return
 end
 
+"""
+    _default_primal_loop(bm::BatchModel)
+
+Returns a default `TrainingStepLoop` for the primal model in the L2O-ALM algorithm.
+"""
 function _default_primal_loop(bm::BatchModel)
     return TrainingStepLoop(
         LagrangianPrimalLoss(bm),
@@ -155,6 +203,11 @@ function _default_primal_loop(bm::BatchModel)
     )
 end
 
+"""
+    _default_dual_loop()
+
+Returns a default `TrainingStepLoop` for the dual model in the L2O-ALM algorithm.
+"""
 function _default_dual_loop()
     return TrainingStepLoop(
         LagrangianDualLoss(),
@@ -168,6 +221,25 @@ function _default_dual_loop()
     )
 end
 
+"""
+    L2OALM_epoch(bm::BatchModel, primal_model::Lux.Model, train_state_primal::Lux.TrainingState,
+                 dual_model::Lux.Model, train_state_dual::Lux.TrainingState,
+                 training_step_loop_primal::TrainingStepLoop=_default_primal_loop(bm),
+                 training_step_loop_dual::TrainingStepLoop=_default_dual_loop(),
+                 data)
+
+Runs a single epoch of the L2O-ALM algorithm, training both primal and dual models.
+
+Arguments:
+- `bm`: A `BatchModel` instance that contains the model and batch configuration.
+- `primal_model`: The Lux model for the primal problem.
+- `train_state_primal`: The training state for the primal model.
+- `dual_model`: The Lux model for the dual problem.
+- `train_state_dual`: The training state for the dual model.
+- `training_step_loop_primal`: The training step loop for the primal model.
+- `training_step_loop_dual`: The training step loop for the dual model.
+- `data`: The training data, typically a collection of batches.
+"""
 function L2OALM_epoch(
     bm::BatchModel,
     primal_model::Lux.Model,
