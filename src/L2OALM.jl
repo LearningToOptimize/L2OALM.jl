@@ -7,6 +7,7 @@ using Lux
 using LuxCUDA
 using Lux.Training
 using CUDA
+using Statistics
 
 export LagrangianDualLoss, LagrangianPrimalLoss, TrainingStepLoop,
        L2OALM_epoch!, L2OALM_train!

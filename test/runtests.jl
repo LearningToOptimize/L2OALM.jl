@@ -13,6 +13,7 @@ PowerModels.silence()
 using PGLib
 
 using Random
+using Statistics
 
 import GPUArraysCore: @allowscalar
 
