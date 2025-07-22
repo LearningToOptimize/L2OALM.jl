@@ -1,10 +1,18 @@
 using L2OALM
 using Test
 using Lux
+using Optimisers
+using MLUtils
+using KernelAbstractions
+using ExaModels
+using BatchNLPKernels
+using CUDA
 
 using PowerModels
 PowerModels.silence()
 using PGLib
+
+using Random
 
 @testset "L2OALM.jl" begin
     function feed_forward_builder(
@@ -112,10 +120,10 @@ using PGLib
             dual_model,
             train_state_primal,
             train_state_dual,
+            data,
             training_step_loop_primal,
             training_step_loop_dual,
             [validation_testset],
-            data
         )
     end
     

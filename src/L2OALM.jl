@@ -6,8 +6,6 @@ using ExaModels
 using Lux
 using LuxCUDA
 using Lux.Training
-using MLUtils
-using Optimisers
 using CUDA
 
 export LagrangianDualLoss, LagrangianPrimalLoss, TrainingStepLoop,
@@ -225,8 +223,8 @@ function _default_dual_loop(num_equal::Int)
 end
 
 """
-    L2OALM_epoch(bm::BatchModel, primal_model::Lux.Model, train_state_primal::Lux.TrainingState,
-                 dual_model::Lux.Model, train_state_dual::Lux.TrainingState,
+    L2OALM_epoch(bm::BatchModel, primal_model::Lux.Chain, train_state_primal::Lux.Training.TrainState,
+                 dual_model::Lux.Chain, train_state_dual::Lux.Training.TrainState,
                  training_step_loop_primal::TrainingStepLoop=_default_primal_loop(bm),
                  training_step_loop_dual::TrainingStepLoop=_default_dual_loop(),
                  data)
@@ -244,10 +242,10 @@ Arguments:
 - `data`: The training data, typically a collection of batches.
 """
 function L2OALM_epoch!(
-    primal_model::Lux.Model,
-    train_state_primal::Lux.TrainingState,
-    dual_model::Lux.Model,
-    train_state_dual::Lux.TrainingState,
+    primal_model::Lux.Chain,
+    train_state_primal::Lux.Training.TrainState,
+    dual_model::Lux.Chain,
+    train_state_dual::Lux.Training.TrainState,
     training_step_loop_primal::TrainingStepLoop,
     training_step_loop_dual::TrainingStepLoop,
     data
@@ -303,12 +301,13 @@ function L2OALM_epoch!(
 end
 
 """
-    L2OALM_train(bm::BatchModel, primal_model::Lux.Model, dual_model::Lux.Model,
-        train_state_primal::Lux.TrainingState, train_state_dual::Lux.TrainingState,
+    L2OALM_train(bm::BatchModel, num_equal::Int,
+        primal_model::Lux.Chain, dual_model::Lux.Chain,
+        train_state_primal::Lux.Training.TrainState, train_state_dual::Lux.Training.TrainState,
         training_step_loop_primal::TrainingStepLoop=_default_primal_loop(bm),
         training_step_loop_dual::TrainingStepLoop=_default_dual_loop(),
-        stopping_criteria::Vector{Function}=[(iter, primal_model::Lux.Model, dual_model::Lux.Model,
-            train_state_primal::Lux.TrainingState, train_state_dual::Lux.TrainingState) -> iter >= 100 ? true : false],
+        stopping_criteria::Vector{Function}=[(iter, primal_model::Lux.Chain, dual_model::Lux.Chain,
+            train_state_primal::Lux.Training.TrainState, train_state_dual::Lux.Training.TrainState) -> iter >= 100 ? true : false],
         data
     )
 
@@ -316,26 +315,27 @@ Runs the L2O-ALM training algorithm until the stopping criteria are met.
 
 Arguments:
 - `bm`: A `BatchModel` instance that contains the model and batch configuration.
+- `num_equal`: The number of equality constraints in the problem, used for dual loss calculation.
 - `primal_model`: The Lux model for the primal problem.
 - `dual_model`: The Lux model for the dual problem.
 - `train_state_primal`: The training state for the primal model.
 - `train_state_dual`: The training state for the dual model.
+- `data`: The training data, typically a collection of batches.
 - `training_step_loop_primal`: The training step loop for the primal model.
 - `training_step_loop_dual`: The training step loop for the dual model.
 - `stopping_criteria`: A vector of functions that determine when to stop the training loop.
-- `data`: The training data, typically a collection of batches.
 """
 function L2OALM_train!(
     bm::BatchModel,
     num_equal::Int,
-    primal_model::Lux.Model,
-    dual_model::Lux.Model,
-    train_state_primal::Lux.TrainingState,
-    train_state_dual::Lux.TrainingState,
+    primal_model::Lux.Chain,
+    dual_model::Lux.Chain,
+    train_state_primal::Lux.Training.TrainState,
+    train_state_dual::Lux.Training.TrainState,
+    data,
     training_step_loop_primal::TrainingStepLoop=_default_primal_loop(bm),
     training_step_loop_dual::TrainingStepLoop=_default_dual_loop(num_equal),
     stopping_criteria::Vector{Function}=[(iter, primal_model, dual_model, tr_st_primal, tr_st_dual, hpm_primal) -> iter >= 100 ? true : false],
-    data
 )
     iter = 1
     while all(stopping_criterion(iter, primal_model, dual_model, train_state_primal, train_state_dual, training_step_loop_primal.hyperparameters, training_step_loop_dual.hyperparameters) for stopping_criterion in stopping_criteria)
