@@ -25,7 +25,7 @@ Keywords:
 function LagrangianDualLoss(num_equal::Int; max_dual=1e6)
     return (dual_model, ps_dual, st_dual, data) -> begin
         x, hpm, dual_hat_k, gh = data
-        ρ = hpm.ρ
+        ρ = hpm[:ρ]
         # Get current dual predictions
         dual_hat, st_dual_new = dual_model(x, ps_dual, st_dual)
         
@@ -58,7 +58,7 @@ Arguments:
 function LagrangianPrimalLoss(bm::BatchModel)    
     return (model, ps, st, data) -> begin
         Θ, hpm, dual_hat = data
-        ρ = hpm.ρ
+        ρ = hpm[:ρ]
         num_s = size(Θ, 2)
 
         # Forward pass for prediction
@@ -113,7 +113,7 @@ This function performs a forward pass through the dual model to obtain the dual 
 """
 function _pre_hook_primal(θ, primal_model, train_state_primal, dual_model, train_state_dual, bm)
     # Forward pass for dual model
-    dual_hat_k, _ = dual_model(θ, train_state_dual.parameters, train_state_dual.state)
+    dual_hat_k, _ = dual_model(θ, train_state_dual.parameters, train_state_dual.states)
 
     return (dual_hat_k,)
 end
@@ -126,11 +126,11 @@ This function performs a forward pass through the primal model to obtain the pre
 """
 function _pre_hook_dual(θ, primal_model, train_state_primal, dual_model, train_state_dual, bm)
     # # Forward pass for primal model
-    X̂, _ = primal_model(θ, train_state_primal.parameters, train_state_primal.state)
+    X̂, _ = primal_model(θ, train_state_primal.parameters, train_state_primal.states)
     gh = constraints!(bm, X̂, Θ)
     
     # Forward pass for dual model
-    dual_hat, _ = dual_model(θ, train_state_dual.parameters, train_state_dual.state)
+    dual_hat, _ = dual_model(θ, train_state_dual.parameters, train_state_dual.states)
 
     return (dual_hat, gh,)
 end
@@ -174,8 +174,8 @@ This function increases ρ by a factor of α if the new maximum violation exceed
 """
 function _update_ALM_ρ!(hpm_primal::Dict{Symbol, Any}, hpm_dual::Dict{Symbol, Any}, current_state::NamedTuple)
     if current_state.new_max_violation > hpm_primal.τ * hpm_primal.max_violation
-        hpm_primal.ρ = min(hpm_primal.ρmax, hpm_primal.ρ * hpm_primal.α)
-        hpm_dual.ρ = hpm_primal.ρ  # Ensure dual model uses the same ρ
+        hpm_primal[:ρ] = min(hpm_primal[:ρmax], hpm_primal[:ρ] * hpm_primal[:α])
+        hpm_dual[:ρ] = hpm_primal[:ρ]  # Ensure dual model uses the same ρ
     end
     hpm_primal.max_violation = current_state.new_max_violation
     return
@@ -195,7 +195,7 @@ function _default_primal_loop(bm::BatchModel)
             :ρmax => 1e6,
             :τ => 0.8,
             :α => 10.0,
-            max_violation => 0.0,
+            :max_violation => 0.0,
         ),
         [_update_ALM_ρ!],
         _reconcile_alm_primal_state,
@@ -332,11 +332,11 @@ function L2OALM_train!(
     dual_model::Lux.Chain,
     train_state_primal::Lux.Training.TrainState,
     train_state_dual::Lux.Training.TrainState,
-    data,
+    data;
     training_step_loop_primal::TrainingStepLoop=_default_primal_loop(bm),
     training_step_loop_dual::TrainingStepLoop=_default_dual_loop(num_equal),
-    stopping_criteria::Vector{Function}=[(iter, primal_model, dual_model, tr_st_primal, tr_st_dual, hpm_primal) -> iter >= 100 ? true : false],
-)
+    stopping_criteria::Vector{F}=[(iter, primal_model, dual_model, tr_st_primal, tr_st_dual, hpm_primal) -> iter >= 100 ? true : false],
+) where F<:Function
     iter = 1
     while all(stopping_criterion(iter, primal_model, dual_model, train_state_primal, train_state_dual, training_step_loop_primal.hyperparameters, training_step_loop_dual.hyperparameters) for stopping_criterion in stopping_criteria)
         L2OALM_epoch!(

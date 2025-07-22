@@ -14,6 +14,12 @@ using PGLib
 
 using Random
 
+import GPUArraysCore: @allowscalar
+
+const BNK = BatchNLPKernels
+
+include("power.jl")
+
 @testset "L2OALM.jl" begin
     function feed_forward_builder(
         num_p::Integer,
@@ -90,12 +96,12 @@ using Random
         function validation_testset(
             iter, primal_model, dual_model, train_state_primal, train_state_dual, hpm_primal, hpm_dual; max_dual=1e6
         )
-            ρ = hpm_primal.ρ
-            X̂_test , _ = primal_model(Θ_test, train_state_primal.parameters, train_state_primal.state)
+            ρ = hpm_primal[:ρ]
+            X̂_test , _ = primal_model(Θ_test, train_state_primal.parameters, train_state_primal.states)
             objs_test = BNK.objective!(bm_test, X̂_test, Θ_test)
             Vc_test, Vb_test = BNK.all_violations!(bm_test, X̂_test, Θ_test)
             gh_test = BNK.constraints!(bm_test, X̂_test, Θ_test)
-            dual_hat, _ = dual_model(Θ_test, train_state_dual.parameters, train_state_dual.state)
+            dual_hat, _ = dual_model(Θ_test, train_state_dual.parameters, train_state_dual.states)
             # Separate bound and equality constraints
             gh_bound = gh_test[1:end-num_equal,:]
             gh_equal = gh_test[end-num_equal+1:end,:]
@@ -116,14 +122,13 @@ using Random
 
         L2OALM_train!(
             bm_train,
+            num_equal,
             primal_model,
             dual_model,
             train_state_primal,
             train_state_dual,
             data,
-            training_step_loop_primal,
-            training_step_loop_dual,
-            [validation_testset],
+            stopping_criteria=[validation_testset],
         )
     end
     
