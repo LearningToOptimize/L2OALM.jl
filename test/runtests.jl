@@ -2,6 +2,9 @@ using L2OALM
 using Test
 using Lux
 
+using PowerModels
+PowerModels.silence()
+using PGLib
 
 @testset "L2OALM.jl" begin
     function feed_forward_builder(
@@ -45,6 +48,7 @@ using Lux
         nvar = model.meta.nvar
         ncon = model.meta.ncon
         nθ = length(model.θ)
+        num_equal = nbus * 2
     
         Θ_train = randn(T, nθ, dataset_size) |> dev_gpu
         Θ_test = randn(T, nθ, dataset_size) |> dev_gpu
@@ -76,18 +80,19 @@ using Lux
         data = DataLoader((Θ_train); batchsize=batch_size, shuffle=true) .|> dev_gpu
 
         function validation_testset(
-            iter, primal_model, dual_model, train_state_primal, train_state_dual,
+            iter, primal_model, dual_model, train_state_primal, train_state_dual, hpm_primal, hpm_dual; max_dual=1e6
         )
+            ρ = hpm_primal.ρ
             X̂_test , _ = primal_model(Θ_test, train_state_primal.parameters, train_state_primal.state)
             objs_test = BNK.objective!(bm_test, X̂_test, Θ_test)
             Vc_test, Vb_test = BNK.all_violations!(bm_test, X̂_test, Θ_test)
             gh_test = BNK.constraints!(bm_test, X̂_test, Θ_test)
-            λ_test, _ = dual_model(Θ_test, train_state_dual.parameters, train_state_dual.state)
+            dual_hat, _ = dual_model(Θ_test, train_state_dual.parameters, train_state_dual.state)
             # Separate bound and equality constraints
-            gh_bound = gh[1:end-n_bus*2,:]
-            gh_equal = gh[end-n_bus*2+1:end,:]
-            dual_hat_bound = dual_hat_k[1:end-n_bus*2,:]
-            dual_hat_equal = dual_hat_k[end-n_bus*2+1:end,:]
+            gh_bound = gh_test[1:end-num_equal,:]
+            gh_equal = gh_test[end-num_equal+1:end,:]
+            dual_hat_bound = dual_hat[1:end-num_equal,:]
+            dual_hat_equal = dual_hat[end-num_equal+1:end,:]
             
             # Target for dual variables
             dual_target = vcat(
@@ -95,9 +100,9 @@ using Lux
                 min.(dual_hat_equal + ρ .* gh_equal, max_dual)
             )
             
-            loss = mean((dual_hat .- dual_target).^2)
+            dual_loss = mean((dual_hat .- dual_target).^2)
             
-            @info "Validation Testset: Iteration $iter" mean(objs_test) mean(Vc_test) mean(Vb_test)
+            @info "Validation Testset: Iteration $iter" mean(objs_test) mean(Vc_test) mean(Vb_test) dual_loss
             return iter >= 100 ? true : false
         end
 
@@ -109,7 +114,7 @@ using Lux
             train_state_dual,
             training_step_loop_primal,
             training_step_loop_dual,
-            stopping_criteria::Vector{Function}=[(iter, current_state, hpm) -> iter >= 100 ? true : false],
+            [validation_testset],
             data
         )
     end

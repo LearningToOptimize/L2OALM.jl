@@ -24,7 +24,7 @@ Target dual variables are clipped from zero to `max_dual`.
 Keywords:
     - `max_dual`: Maximum value for the target dual variables.
 """
-function LagrangianDualLoss(n_bus::Int; max_dual=1e6)
+function LagrangianDualLoss(num_equal::Int; max_dual=1e6)
     return (dual_model, ps_dual, st_dual, data) -> begin
         x, hpm, dual_hat_k, gh = data
         ρ = hpm.ρ
@@ -32,10 +32,10 @@ function LagrangianDualLoss(n_bus::Int; max_dual=1e6)
         dual_hat, st_dual_new = dual_model(x, ps_dual, st_dual)
         
         # Separate bound and equality constraints
-        gh_bound = gh[1:end-n_bus*2,:]
-        gh_equal = gh[end-n_bus*2+1:end,:]
-        dual_hat_bound = dual_hat_k[1:end-n_bus*2,:]
-        dual_hat_equal = dual_hat_k[end-n_bus*2+1:end,:]
+        gh_bound = gh[1:end-num_equal,:]
+        gh_equal = gh[end-num_equal+1:end,:]
+        dual_hat_bound = dual_hat_k[1:end-num_equal,:]
+        dual_hat_equal = dual_hat_k[end-num_equal+1:end,:]
         
         # Target for dual variables
         dual_target = vcat(
@@ -174,11 +174,12 @@ end
 Default function to update the hyperparameter ρ in the ALM algorithm.
 This function increases ρ by a factor of α if the new maximum violation exceeds τ times the previous maximum violation.
 """
-function _update_ALM_ρ!(hpm::Dict{Symbol, Any}, current_state::NamedTuple)
-    if current_state.new_max_violation > hpm.τ * hpm.max_violation
-        hpm.ρ = min(hpm.ρmax, hpm.ρ * hpm.α)
+function _update_ALM_ρ!(hpm_primal::Dict{Symbol, Any}, hpm_dual::Dict{Symbol, Any}, current_state::NamedTuple)
+    if current_state.new_max_violation > hpm_primal.τ * hpm_primal.max_violation
+        hpm_primal.ρ = min(hpm_primal.ρmax, hpm_primal.ρ * hpm_primal.α)
+        hpm_dual.ρ = hpm_primal.ρ  # Ensure dual model uses the same ρ
     end
-    hpm.max_violation = current_state.new_max_violation
+    hpm_primal.max_violation = current_state.new_max_violation
     return
 end
 
@@ -209,12 +210,13 @@ end
 
 Returns a default `TrainingStepLoop` for the dual model in the L2O-ALM algorithm.
 """
-function _default_dual_loop()
+function _default_dual_loop(num_equal::Int)
     return TrainingStepLoop(
-        LagrangianDualLoss(),
+        LagrangianDualLoss(num_equal),
         [(iter, current_state, hpm) -> iter >= 100 ? true : false],
         Dict{Symbol, Any}(
             :max_dual => 1e6,
+            :ρ => 1.0,
         ),
         [],
         _reconcile_alm_dual_state,
@@ -242,7 +244,6 @@ Arguments:
 - `data`: The training data, typically a collection of batches.
 """
 function L2OALM_epoch!(
-    bm::BatchModel,
     primal_model::Lux.Model,
     train_state_primal::Lux.TrainingState,
     dual_model::Lux.Model,
@@ -275,7 +276,7 @@ function L2OALM_epoch!(
         iter_primal += 1
     end
     for fn in training_step_loop_primal.parameter_update_fns
-        fn(training_step_loop_primal.hyperparameters, current_state_primal)
+        fn(training_step_loop_primal.hyperparameters, training_step_loop_dual.hyperparameters, current_state_primal)
     end
 
     # dual loop
@@ -296,7 +297,7 @@ function L2OALM_epoch!(
         iter_dual += 1
     end
     for fn in training_step_loop_dual.parameter_update_fns
-        fn(training_step_loop_dual.hyperparameters, current_state_dual)
+        fn(training_step_loop_primal.hyperparameters, training_step_loop_dual.hyperparameters, current_state_dual)
     end
     return
 end
@@ -326,19 +327,19 @@ Arguments:
 """
 function L2OALM_train!(
     bm::BatchModel,
+    num_equal::Int,
     primal_model::Lux.Model,
     dual_model::Lux.Model,
     train_state_primal::Lux.TrainingState,
     train_state_dual::Lux.TrainingState,
     training_step_loop_primal::TrainingStepLoop=_default_primal_loop(bm),
-    training_step_loop_dual::TrainingStepLoop=_default_dual_loop(),
-    stopping_criteria::Vector{Function}=[(iter, primal_model, dual_model, train_state_primal, train_state_dual) -> iter >= 100 ? true : false],
+    training_step_loop_dual::TrainingStepLoop=_default_dual_loop(num_equal),
+    stopping_criteria::Vector{Function}=[(iter, primal_model, dual_model, tr_st_primal, tr_st_dual, hpm_primal) -> iter >= 100 ? true : false],
     data
 )
     iter = 1
-    while all(stopping_criterion(iter, primal_model, dual_model, train_state_primal, train_state_dual) for stopping_criterion in stopping_criteria)
+    while all(stopping_criterion(iter, primal_model, dual_model, train_state_primal, train_state_dual, training_step_loop_primal.hyperparameters, training_step_loop_dual.hyperparameters) for stopping_criterion in stopping_criteria)
         L2OALM_epoch!(
-            bm,
             primal_model,
             train_state_primal,
             dual_model,
