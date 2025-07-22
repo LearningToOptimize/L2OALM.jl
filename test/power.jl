@@ -116,8 +116,7 @@ function create_parametric_ac_power_model(filename::String = "pglib_opf_case14_i
     pg = variable(c, length(data.gen); lvar = data.pmin, uvar = data.pmax)
     qg = variable(c, length(data.gen); lvar = data.qmin, uvar = data.qmax)
 
-    @allowscalar pd = parameter(c, [b.pd for b in data.bus])
-    @allowscalar qd = parameter(c, [b.qd for b in data.bus])
+    @allowscalar load_multiplier = parameter(c, [1.0 for b in data.bus])
 
     p = variable(c, length(data.arc); lvar = -data.rate_a, uvar = data.rate_a)
     q = variable(c, length(data.arc); lvar = -data.rate_a, uvar = data.rate_a)
@@ -179,8 +178,8 @@ function create_parametric_ac_power_model(filename::String = "pglib_opf_case14_i
     )
 
     # Power balance at each bus -----------------------------------------------
-    load_balance_p = constraint(c, pd[b.i] + b.gs * vm[b.i]^2 for b in data.bus)
-    load_balance_q = constraint(c, qd[b.i] - b.bs * vm[b.i]^2 for b in data.bus)
+    load_balance_p = constraint(c, b.pd * load_multiplier[b.i] + b.gs * vm[b.i]^2 for b in data.bus)
+    load_balance_q = constraint(c, b.qd * load_multiplier[b.i] - b.bs * vm[b.i]^2 for b in data.bus)
 
     # Map arc & generator variables into the bus balance equations
     constraint!(c, load_balance_p, a.bus => p[a.i]   for a in data.arc)
@@ -188,12 +187,5 @@ function create_parametric_ac_power_model(filename::String = "pglib_opf_case14_i
     constraint!(c, load_balance_p, g.bus => -pg[g.i] for g in data.gen)
     constraint!(c, load_balance_q, g.bus => -qg[g.i] for g in data.gen)
 
-    return ExaModel(c; prod = prod)
+    return ExaModel(c; prod = prod), length(data.bus), length(data.gen), length(data.arc)
 end
-
-function create_power_models(backend = OpenCLBackend(), T=Float64)
-    models = ExaModel[]
-    push!(models, create_ac_power_model("pglib_opf_case14_ieee.m"; backend = backend))
-    names  = ["AC-OPF – IEEE-14"]
-    return models, names
-end 

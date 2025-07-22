@@ -10,7 +10,8 @@ using MLUtils
 using Optimisers
 using CUDA
 
-# using OpenCL, pocl_jll, AcceleratedKernels
+export LagrangianDualLoss, LagrangianPrimalLoss, TrainingStepLoop,
+       L2OALM_epoch!, L2OALM_train!
 
 """
     LagrangianDualLoss(;max_dual=1e6)
@@ -23,7 +24,7 @@ Target dual variables are clipped from zero to `max_dual`.
 Keywords:
     - `max_dual`: Maximum value for the target dual variables.
 """
-function LagrangianDualLoss(;max_dual=1e6)
+function LagrangianDualLoss(n_bus::Int; max_dual=1e6)
     return (dual_model, ps_dual, st_dual, data) -> begin
         x, hpm, dual_hat_k, gh = data
         ρ = hpm.ρ
@@ -240,14 +241,14 @@ Arguments:
 - `training_step_loop_dual`: The training step loop for the dual model.
 - `data`: The training data, typically a collection of batches.
 """
-function L2OALM_epoch(
+function L2OALM_epoch!(
     bm::BatchModel,
     primal_model::Lux.Model,
     train_state_primal::Lux.TrainingState,
     dual_model::Lux.Model,
     train_state_dual::Lux.TrainingState,
-    training_step_loop_primal::TrainingStepLoop=_default_primal_loop(bm),
-    training_step_loop_dual::TrainingStepLoop=_default_dual_loop(),
+    training_step_loop_primal::TrainingStepLoop,
+    training_step_loop_dual::TrainingStepLoop,
     data
 )
     iter_primal = 1
@@ -323,7 +324,7 @@ Arguments:
 - `stopping_criteria`: A vector of functions that determine when to stop the training loop.
 - `data`: The training data, typically a collection of batches.
 """
-function L2OALM_train(
+function L2OALM_train!(
     bm::BatchModel,
     primal_model::Lux.Model,
     dual_model::Lux.Model,
@@ -331,12 +332,12 @@ function L2OALM_train(
     train_state_dual::Lux.TrainingState,
     training_step_loop_primal::TrainingStepLoop=_default_primal_loop(bm),
     training_step_loop_dual::TrainingStepLoop=_default_dual_loop(),
-    stopping_criteria::Vector{Function}=[(iter, current_state, hpm) -> iter >= 100 ? true : false],
+    stopping_criteria::Vector{Function}=[(iter, primal_model, dual_model, train_state_primal, train_state_dual) -> iter >= 100 ? true : false],
     data
 )
     iter = 1
     while all(stopping_criterion(iter, primal_model, dual_model, train_state_primal, train_state_dual) for stopping_criterion in stopping_criteria)
-        L2OALM_epoch(
+        L2OALM_epoch!(
             bm,
             primal_model,
             train_state_primal,

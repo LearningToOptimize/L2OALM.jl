@@ -1,5 +1,7 @@
 using L2OALM
 using Test
+using Lux
+
 
 @testset "L2OALM.jl" begin
     function feed_forward_builder(
@@ -29,68 +31,87 @@ using Test
         return Chain(dense_layers...)
     end
     
-    function test_penalty_training(; filename="pglib_opf_case14_ieee.m", dev_gpu = gpu_device(), 
+    function test_alm_training(; filename="pglib_opf_case14_ieee.m", dev_gpu = gpu_device(), 
         backend=CPU(),
         batch_size = 32,
         dataset_size = 3200,
         rng = Random.default_rng(),
         T = Float64,
     )
-        model = create_parametric_ac_power_model(filename; backend = backend, T=T)
-        bm = BNK.BatchModel(model, batch_size, config=BNK.BatchModelConfig(:full))
-        bm_all = BNK.BatchModel(model, dataset_size, config=BNK.BatchModelConfig(:full))
-    
-        function PenaltyLoss(model, ps, st, Θ)
-            X̂ , st_new = model(Θ, ps, st)
-    
-            obj = BNK.objective!(bm, X̂, Θ)
-            Vc, Vb = BNK.all_violations!(bm, X̂, Θ)
-    
-            return sum(obj) + 1000 * sum(Vc) + 1000 * sum(Vb), st_new, (;obj=sum(obj), Vc=sum(Vc), Vb=sum(Vb))
-        end
+        model, nbus, ngen, blines = create_parametric_ac_power_model(filename; backend = backend, T=T)
+        bm_train = BNK.BatchModel(model, batch_size, config=BNK.BatchModelConfig(:full))
+        bm_test = BNK.BatchModel(model, dataset_size, config=BNK.BatchModelConfig(:full))
     
         nvar = model.meta.nvar
         ncon = model.meta.ncon
         nθ = length(model.θ)
     
         Θ_train = randn(T, nθ, dataset_size) |> dev_gpu
+        Θ_test = randn(T, nθ, dataset_size) |> dev_gpu
     
-        lux_model = feed_forward_builder(nθ, nvar, [320, 320])
+        primal_model = feed_forward_builder(nθ, nvar, [320, 320])
+        ps_primal, st_primal = Lux.setup(rng, primal_model)
+        ps_primal = ps_primal |> dev_gpu
+        st_primal = st_primal |> dev_gpu
+
+        dual_model = feed_forward_builder(nθ, ncon, [320, 320])
+        ps_dual, st_dual = Lux.setup(rng, dual_model)
+        ps_dual = ps_dual |> dev_gpu
+        st_dual = st_dual |> dev_gpu
     
-        ps_model, st_model = Lux.setup(rng, lux_model)
-        ps_model = ps_model |> dev_gpu
-        st_model = st_model |> dev_gpu
+        X̂ , _ = primal_model(Θ_test, ps_primal, st_primal)
     
-        X̂ , _ = lux_model(Θ_train, ps_model, st_model)
-    
-        y = BNK.objective!(bm_all, X̂, Θ_train)
+        y = BNK.objective!(bm_test, X̂, Θ_test)
     
         @test length(y) == dataset_size
-        Vc, Vb = BNK.all_violations!(bm_all, X̂, Θ_train)
+        Vc, Vb = BNK.all_violations!(bm_test, X̂, Θ_test)
         @test size(Vc) == (ncon, dataset_size)
         @test size(Vb) == (nvar, dataset_size)
     
-        lagrangian_prev = sum(y) + 1000 * sum(Vc) + 1000 * sum(Vb)
+        # lagrangian_prev = sum(y) + 1000 * sum(Vc) + 1000 * sum(Vb)
     
-        train_state = Training.TrainState(lux_model, ps_model, st_model, Optimisers.Adam(1e-5))
+        train_state_primal = Training.TrainState(primal_model, ps_primal, st_primal, Optimisers.Adam(1e-5))
+        train_state_dual = Training.TrainState(dual_model, ps_dual, st_dual, Optimisers.Adam(1e-5))
     
         data = DataLoader((Θ_train); batchsize=batch_size, shuffle=true) .|> dev_gpu
-        for (Θ) in data
-            _, loss_val, stats, train_state = Training.single_train_step!(
-                AutoZygote(),          # AD backend
-                PenaltyLoss,
-                (Θ),  # data
-                train_state
+
+        function validation_testset(
+            iter, primal_model, dual_model, train_state_primal, train_state_dual,
+        )
+            X̂_test , _ = primal_model(Θ_test, train_state_primal.parameters, train_state_primal.state)
+            objs_test = BNK.objective!(bm_test, X̂_test, Θ_test)
+            Vc_test, Vb_test = BNK.all_violations!(bm_test, X̂_test, Θ_test)
+            gh_test = BNK.constraints!(bm_test, X̂_test, Θ_test)
+            λ_test, _ = dual_model(Θ_test, train_state_dual.parameters, train_state_dual.state)
+            # Separate bound and equality constraints
+            gh_bound = gh[1:end-n_bus*2,:]
+            gh_equal = gh[end-n_bus*2+1:end,:]
+            dual_hat_bound = dual_hat_k[1:end-n_bus*2,:]
+            dual_hat_equal = dual_hat_k[end-n_bus*2+1:end,:]
+            
+            # Target for dual variables
+            dual_target = vcat(
+                min.(max.(dual_hat_bound + ρ .* gh_bound, 0), max_dual),
+                min.(dual_hat_equal + ρ .* gh_equal, max_dual)
             )
+            
+            loss = mean((dual_hat .- dual_target).^2)
+            
+            @info "Validation Testset: Iteration $iter" mean(objs_test) mean(Vc_test) mean(Vb_test)
+            return iter >= 100 ? true : false
         end
-    
-        X̂ , st_model = lux_model(Θ_train, ps_model, st_model)
-    
-        y = BNK.objective!(bm_all, X̂, Θ_train)
-        Vc, Vb = BNK.all_violations!(bm_all, X̂, Θ_train)
-        lagrangian_new = sum(y) + 1000 * sum(Vc) + 1000 * sum(Vb)
-    
-        @test lagrangian_new < lagrangian_prev
+
+        L2OALM_train!(
+            bm_train,
+            primal_model,
+            dual_model,
+            train_state_primal,
+            train_state_dual,
+            training_step_loop_primal,
+            training_step_loop_dual,
+            stopping_criteria::Vector{Function}=[(iter, current_state, hpm) -> iter >= 100 ? true : false],
+            data
+        )
     end
     
     @testset "Penalty Training" begin
@@ -100,6 +121,6 @@ using Test
             CPU(), cpu_device()
         end
     
-        test_penalty_training(; filename="pglib_opf_case14_ieee.m", dev_gpu = dev, backend=backend, T=Float32)
+        test_alm_training(; filename="pglib_opf_case14_ieee.m", dev_gpu = dev, backend=backend, T=Float32)
     end
 end
