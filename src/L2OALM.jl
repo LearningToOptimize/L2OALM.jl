@@ -300,5 +300,55 @@ function L2OALM_epoch(
     return
 end
 
+"""
+    L2OALM_train(bm::BatchModel, primal_model::Lux.Model, dual_model::Lux.Model,
+        train_state_primal::Lux.TrainingState, train_state_dual::Lux.TrainingState,
+        training_step_loop_primal::TrainingStepLoop=_default_primal_loop(bm),
+        training_step_loop_dual::TrainingStepLoop=_default_dual_loop(),
+        stopping_criteria::Vector{Function}=[(iter, primal_model::Lux.Model, dual_model::Lux.Model,
+            train_state_primal::Lux.TrainingState, train_state_dual::Lux.TrainingState) -> iter >= 100 ? true : false],
+        data
+    )
+
+Runs the L2O-ALM training algorithm until the stopping criteria are met.
+
+Arguments:
+- `bm`: A `BatchModel` instance that contains the model and batch configuration.
+- `primal_model`: The Lux model for the primal problem.
+- `dual_model`: The Lux model for the dual problem.
+- `train_state_primal`: The training state for the primal model.
+- `train_state_dual`: The training state for the dual model.
+- `training_step_loop_primal`: The training step loop for the primal model.
+- `training_step_loop_dual`: The training step loop for the dual model.
+- `stopping_criteria`: A vector of functions that determine when to stop the training loop.
+- `data`: The training data, typically a collection of batches.
+"""
+function L2OALM_train(
+    bm::BatchModel,
+    primal_model::Lux.Model,
+    dual_model::Lux.Model,
+    train_state_primal::Lux.TrainingState,
+    train_state_dual::Lux.TrainingState,
+    training_step_loop_primal::TrainingStepLoop=_default_primal_loop(bm),
+    training_step_loop_dual::TrainingStepLoop=_default_dual_loop(),
+    stopping_criteria::Vector{Function}=[(iter, current_state, hpm) -> iter >= 100 ? true : false],
+    data
+)
+    iter = 1
+    while all(stopping_criterion(iter, primal_model, dual_model, train_state_primal, train_state_dual) for stopping_criterion in stopping_criteria)
+        L2OALM_epoch(
+            bm,
+            primal_model,
+            train_state_primal,
+            dual_model,
+            train_state_dual,
+            training_step_loop_primal,
+            training_step_loop_dual,
+            data
+        )
+        iter += 1
+    end
+    return
+end
 
 end
