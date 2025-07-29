@@ -99,57 +99,26 @@ include("power.jl")
 
         data = DataLoader((Θ_train); batchsize = batch_size, shuffle = true) .|> dev_gpu
 
-        function validation_testset(
-            iter,
-            primal_model,
-            dual_model,
-            train_state_primal,
-            train_state_dual,
-            hpm_primal,
-            hpm_dual;
-            max_dual = 1e6,
-        )
-            ρ = hpm_primal[:ρ]
-            X̂_test, _ = primal_model(
-                Θ_test,
-                train_state_primal.parameters,
-                train_state_primal.states,
-            )
-            objs_test = BNK.objective!(bm_test, X̂_test, Θ_test)
-            Vc_test, Vb_test = BNK.all_violations!(bm_test, X̂_test, Θ_test)
-            gh_test = BNK.constraints!(bm_test, X̂_test, Θ_test)
-            dual_hat, _ =
-                dual_model(Θ_test, train_state_dual.parameters, train_state_dual.states)
-            # Separate bound and equality constraints
-            gh_bound = gh_test[1:end-num_equal, :]
-            gh_equal = gh_test[end-num_equal+1:end, :]
-            dual_hat_bound = dual_hat[1:end-num_equal, :]
-            dual_hat_equal = dual_hat[end-num_equal+1:end, :]
+        method = ALMMethod(; batch_model=bm_train, num_equal=num_equal)
+        trainer = ALMTrainer(primal_model, train_state_primal, dual_model, train_state_dual)
+        method_test = ALMMethod(; batch_model=bm_test, num_equal=num_equal)
+        test_primal_loss = primal_loss(method_test)
+        test_dual_loss = dual_loss(method_test)
 
-            # Target for dual variables
-            dual_target = vcat(
-                min.(max.(dual_hat_bound + ρ .* gh_bound, 0), max_dual),
-                min.(dual_hat_equal + ρ .* gh_equal, max_dual),
-            )
+        _, prev_primal_loss_val, _, _ = test_primal_loss(primal_model, ps_primal, st_primal, (Θ_test, trainer))
 
-            dual_loss = mean((dual_hat .- dual_target) .^ 2)
+        for iter in 1:100
+            single_train_step!(method, trainer, data)
+            # Log
+            _, primal_loss_val, stats_primal, train_state_primal = test_primal_loss(primal_model, ps_primal, st_primal, (Θ_test, trainer))
+            _, dual_loss_val, stats_dual, train_state_dual = test_dual_loss(dual_model, ps_dual, st_dual, (Θ_test, trainer))
 
-            @info "Validation Testset: Iteration $iter" mean(objs_test) mean(Vc_test) mean(
-                Vb_test,
-            ) dual_loss
-            return iter >= 100 ? true : false
+            @info "Validation Testset: Iteration $iter" primal_loss_val stats_primal.max_violation stats_primal.mean_violations stats_primal.mean_objs dual_loss_val
         end
+        # Check that the primal loss is decreasing
+        @test primal_loss_val < prev_primal_loss_val
 
-        L2OALM_train!(
-            bm_train,
-            num_equal,
-            primal_model,
-            dual_model,
-            train_state_primal,
-            train_state_dual,
-            data,
-            stopping_criteria = [validation_testset],
-        )
+        return
     end
 
     @testset "Penalty Training" begin

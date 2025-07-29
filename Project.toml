@@ -6,14 +6,12 @@ version = "1.0.0-DEV"
 [deps]
 BatchNLPKernels = "7145f916-0e30-4c9d-93a2-b32b6056125d"
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
+ChainRules = "082447d4-558c-5d27-93f4-14fc19e9eca2"
 ExaModels = "1037b233-b668-4ce9-9b63-f9f681f55dd2"
 Lux = "b2108857-7c20-44ae-9111-449ecde12c47"
 LuxCUDA = "d0bbae9a-e099-4d5b-a835-1c6931763bda"
 Optimisers = "3bd65402-5787-11e9-1adc-39752487f4e2"
 Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
-
-[sources]
-BatchNLPKernels = {url = "https://github.com/klamike/BatchNLPKernels.jl"}
 
 [compat]
 julia = "1.6.7"
@@ -26,6 +24,9 @@ PGLib = "07a8691f-3d11-4330-951b-3c50f98338be"
 PowerModels = "c36e90e8-916a-50a6-bd94-075b64ef4655"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[sources.BatchNLPKernels]
+url = "https://github.com/klamike/BatchNLPKernels.jl"
 
 [targets]
 test = ["Test", "PowerModels", "PGLib", "Random", "MLUtils", "KernelAbstractions", "GPUArraysCore"]
