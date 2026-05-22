@@ -78,6 +78,8 @@ function _parse_ac_data_raw(filename; T = Float64)
                     c7 = T((g + g_to)),
                     c8 = T((b + b_to)),
                     rate_a_sq = T(branch["rate_a"]^2),
+                    angmax = T(branch["angmax"]),
+                    angmin = T(branch["angmin"]),
                 )
             end for (i, branch_raw) in ref[:branch]
         ],
@@ -111,7 +113,12 @@ function create_parametric_ac_power_model(
     data = _parse_ac_data(filename, backend, T = T)
     c = ExaCore(T; backend = backend)
 
-    va = variable(c, length(data.bus);)
+    va = variable(
+        c,
+        length(data.bus);
+        lvar = fill!(similar(data.bus, T), -T(π / 2)),
+        uvar = fill!(similar(data.bus, T), T(π / 2)),
+    )
     vm = variable(
         c,
         length(data.bus);
@@ -125,88 +132,117 @@ function create_parametric_ac_power_model(
 
     @allowscalar load_multiplier = parameter(c, [1.0 for b in data.bus])
 
-    p = variable(c, length(data.arc); lvar = -data.rate_a, uvar = data.rate_a)
-    q = variable(c, length(data.arc); lvar = -data.rate_a, uvar = data.rate_a)
-
     o = objective(c, g.cost1 * pg[g.i]^2 + g.cost2 * pg[g.i] + g.cost3 for g in data.gen)
 
-    # Reference bus angle ------------------------------------------------------
+    # Reduced-space formulation: p and q branch flows are eliminated as decision
+    # variables and expressed analytically from (vm, va) via the AC power flow
+    # equations.  This removes all 4·nbranch branch-flow equality constraints
+    # (which were the dominant cause of max_viol_eq ≈ 1.0 when p/q were free):
+    #
+    #   p_from = c5·vm[f]² + c3·vm[f]·vm[t]·cos(θ) + c4·vm[f]·vm[t]·sin(θ)
+    #   q_from = -c6·vm[f]² - c4·vm[f]·vm[t]·cos(θ) + c3·vm[f]·vm[t]·sin(θ)
+    #   p_to   = c7·vm[t]² + c1·vm[t]·vm[f]·cos(-θ) + c2·vm[t]·vm[f]·sin(-θ)
+    #   q_to   = -c8·vm[t]² - c2·vm[t]·vm[f]·cos(-θ) + c1·vm[t]·vm[f]·sin(-θ)
+    #
+    # Constraints: inequalities first (angle_diff × 2, thermal × 2), then
+    # equalities (ref_bus, power_balance_p, power_balance_q).
+
+    # =========================== INEQUALITIES ===============================
+
+    # Angle difference upper: va_f - va_t ≤ angmax
+    constraint(
+        c,
+        va[b.f_bus] - va[b.t_bus] - b.angmax for b in data.branch;
+        lcon = fill!(similar(data.branch, Float64, length(data.branch)), -Inf),
+    )
+    # Angle difference lower: angmin ≤ va_f - va_t
+    constraint(
+        c,
+        b.angmin - (va[b.f_bus] - va[b.t_bus]) for b in data.branch;
+        lcon = fill!(similar(data.branch, Float64, length(data.branch)), -Inf),
+    )
+
+    # Thermal from: p_from² + q_from² ≤ rate_a²
+    constraint(
+        c,
+        (
+            b.c5 * vm[b.f_bus]^2 +
+            b.c3 * (vm[b.f_bus] * vm[b.t_bus] * cos(va[b.f_bus] - va[b.t_bus])) +
+            b.c4 * (vm[b.f_bus] * vm[b.t_bus] * sin(va[b.f_bus] - va[b.t_bus]))
+        )^2 + (
+            -b.c6 * vm[b.f_bus]^2 -
+            b.c4 * (vm[b.f_bus] * vm[b.t_bus] * cos(va[b.f_bus] - va[b.t_bus])) +
+            b.c3 * (vm[b.f_bus] * vm[b.t_bus] * sin(va[b.f_bus] - va[b.t_bus]))
+        )^2 - b.rate_a_sq for b in data.branch;
+        lcon = fill!(similar(data.branch, Float64, length(data.branch)), -Inf),
+    )
+    # Thermal to: p_to² + q_to² ≤ rate_a²
+    constraint(
+        c,
+        (
+            b.c7 * vm[b.t_bus]^2 +
+            b.c1 * (vm[b.t_bus] * vm[b.f_bus] * cos(va[b.t_bus] - va[b.f_bus])) +
+            b.c2 * (vm[b.t_bus] * vm[b.f_bus] * sin(va[b.t_bus] - va[b.f_bus]))
+        )^2 + (
+            -b.c8 * vm[b.t_bus]^2 -
+            b.c2 * (vm[b.t_bus] * vm[b.f_bus] * cos(va[b.t_bus] - va[b.f_bus])) +
+            b.c1 * (vm[b.t_bus] * vm[b.f_bus] * sin(va[b.t_bus] - va[b.f_bus]))
+        )^2 - b.rate_a_sq for b in data.branch;
+        lcon = fill!(similar(data.branch, Float64, length(data.branch)), -Inf),
+    )
+
+    # ============================ EQUALITIES ================================
+
+    # Reference bus angle
     c1 = constraint(c, va[i] for i in data.ref_buses)
 
-    # Branch power-flow equations ---------------------------------------------
-    constraint(
-        c,
-        (
-            p[b.f_idx] - b.c5 * vm[b.f_bus]^2 -
-            b.c3 * (vm[b.f_bus] * vm[b.t_bus] * cos(va[b.f_bus] - va[b.t_bus])) -
-            b.c4 * (vm[b.f_bus] * vm[b.t_bus] * sin(va[b.f_bus] - va[b.t_bus])) for
-            b in data.branch
-        ),
-    )
-
-    constraint(
-        c,
-        (
-            q[b.f_idx] +
-            b.c6 * vm[b.f_bus]^2 +
-            b.c4 * (vm[b.f_bus] * vm[b.t_bus] * cos(va[b.f_bus] - va[b.t_bus])) -
-            b.c3 * (vm[b.f_bus] * vm[b.t_bus] * sin(va[b.f_bus] - va[b.t_bus])) for
-            b in data.branch
-        ),
-    )
-
-    constraint(
-        c,
-        (
-            p[b.t_idx] - b.c7 * vm[b.t_bus]^2 -
-            b.c1 * (vm[b.t_bus] * vm[b.f_bus] * cos(va[b.t_bus] - va[b.f_bus])) -
-            b.c2 * (vm[b.t_bus] * vm[b.f_bus] * sin(va[b.t_bus] - va[b.f_bus])) for
-            b in data.branch
-        ),
-    )
-
-    constraint(
-        c,
-        (
-            q[b.t_idx] +
-            b.c8 * vm[b.t_bus]^2 +
-            b.c2 * (vm[b.t_bus] * vm[b.f_bus] * cos(va[b.t_bus] - va[b.f_bus])) -
-            b.c1 * (vm[b.t_bus] * vm[b.f_bus] * sin(va[b.t_bus] - va[b.f_bus])) for
-            b in data.branch
-        ),
-    )
-
-    # Angle difference limits --------------------------------------------------
-    constraint(
-        c,
-        va[b.f_bus] - va[b.t_bus] for b in data.branch;
-        lcon = data.angmin,
-        ucon = data.angmax,
-    )
-
-    # Apparent power thermal limits -------------------------------------------
-    constraint(
-        c,
-        p[b.f_idx]^2 + q[b.f_idx]^2 - b.rate_a_sq for b in data.branch;
-        lcon = fill!(similar(data.branch, Float64, length(data.branch)), -Inf),
-    )
-    constraint(
-        c,
-        p[b.t_idx]^2 + q[b.t_idx]^2 - b.rate_a_sq for b in data.branch;
-        lcon = fill!(similar(data.branch, Float64, length(data.branch)), -Inf),
-    )
-
-    # Power balance at each bus -----------------------------------------------
+    # Power balance: load + shunt + Σ branch flows - Σ generation = 0
     load_balance_p =
         constraint(c, b.pd * load_multiplier[b.i] + b.gs * vm[b.i]^2 for b in data.bus)
     load_balance_q =
         constraint(c, b.qd * load_multiplier[b.i] - b.bs * vm[b.i]^2 for b in data.bus)
 
-    # Map arc & generator variables into the bus balance equations
-    constraint!(c, load_balance_p, a.bus => p[a.i] for a in data.arc)
-    constraint!(c, load_balance_q, a.bus => q[a.i] for a in data.arc)
+    # From-arc p flowing out of f_bus
+    constraint!(
+        c,
+        load_balance_p,
+        b.f_bus => b.c5 * vm[b.f_bus]^2 +
+            b.c3 * (vm[b.f_bus] * vm[b.t_bus] * cos(va[b.f_bus] - va[b.t_bus])) +
+            b.c4 * (vm[b.f_bus] * vm[b.t_bus] * sin(va[b.f_bus] - va[b.t_bus])) for
+        b in data.branch
+    )
+    # To-arc p flowing out of t_bus
+    constraint!(
+        c,
+        load_balance_p,
+        b.t_bus => b.c7 * vm[b.t_bus]^2 +
+            b.c1 * (vm[b.t_bus] * vm[b.f_bus] * cos(va[b.t_bus] - va[b.f_bus])) +
+            b.c2 * (vm[b.t_bus] * vm[b.f_bus] * sin(va[b.t_bus] - va[b.f_bus])) for
+        b in data.branch
+    )
+    # From-arc q flowing out of f_bus
+    constraint!(
+        c,
+        load_balance_q,
+        b.f_bus => -b.c6 * vm[b.f_bus]^2 -
+            b.c4 * (vm[b.f_bus] * vm[b.t_bus] * cos(va[b.f_bus] - va[b.t_bus])) +
+            b.c3 * (vm[b.f_bus] * vm[b.t_bus] * sin(va[b.f_bus] - va[b.t_bus])) for
+        b in data.branch
+    )
+    # To-arc q flowing out of t_bus
+    constraint!(
+        c,
+        load_balance_q,
+        b.t_bus => -b.c8 * vm[b.t_bus]^2 -
+            b.c2 * (vm[b.t_bus] * vm[b.f_bus] * cos(va[b.t_bus] - va[b.f_bus])) +
+            b.c1 * (vm[b.t_bus] * vm[b.f_bus] * sin(va[b.t_bus] - va[b.f_bus])) for
+        b in data.branch
+    )
     constraint!(c, load_balance_p, g.bus => -pg[g.i] for g in data.gen)
     constraint!(c, load_balance_q, g.bus => -qg[g.i] for g in data.gen)
 
-    return ExaModel(c; prod = prod), length(data.bus), length(data.gen), length(data.arc)
+    # ref_bus_idxs: positions in y (1-indexed) of the reference bus voltage angles.
+    # va occupies positions 1..nbus, so ref bus at internal index i → y[i].
+    ref_bus_idxs = Int.(Array(data.ref_buses))   # always CPU — just indices, not model data
+    return ExaModel(c; prod = prod), length(data.bus), length(data.gen), length(data.arc), ref_bus_idxs
 end

@@ -1,19 +1,38 @@
 name = "L2OALM"
 uuid = "f31bfc7b-7b5d-4cc3-b76b-1af281ce159d"
-authors = ["Andrew <arosemberg3@gatech.edu> and contributors"]
 version = "1.0.0-DEV"
+authors = ["Andrew <arosemberg3@gatech.edu> and contributors"]
 
 [deps]
 BatchNLPKernels = "7145f916-0e30-4c9d-93a2-b32b6056125d"
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 ChainRules = "082447d4-558c-5d27-93f4-14fc19e9eca2"
 ExaModels = "1037b233-b668-4ce9-9b63-f9f681f55dd2"
+GPUArraysCore = "46192b85-c4d5-4398-a991-12ede77f4527"
+KernelAbstractions = "63c18a36-062a-441e-b654-da1e3ab1ce7c"
 Lux = "b2108857-7c20-44ae-9111-449ecde12c47"
 LuxCUDA = "d0bbae9a-e099-4d5b-a835-1c6931763bda"
+MLUtils = "f1d291b0-491e-4a28-83b9-f70985020b54"
+NNlib = "872c559c-99b0-510c-b3b7-b6c96a88d5cd"
 Optimisers = "3bd65402-5787-11e9-1adc-39752487f4e2"
+PGLib = "07a8691f-3d11-4330-951b-3c50f98338be"
+PowerModels = "c36e90e8-916a-50a6-bd94-075b64ef4655"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
+Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
+
+[sources]
+BatchNLPKernels = {rev = "main", url = "https://github.com/klamike/BatchNLPKernels.jl"}
 
 [compat]
+GPUArraysCore = "0.2.0"
+KernelAbstractions = "0.9.41"
+MLUtils = "0.4.8"
+NNlib = "0.9.34"
+PGLib = "0.2.2"
+PowerModels = "0.21.6"
+Random = "1.11.0"
+Zygote = "0.7.10"
 julia = "1.6.7"
 
 [extras]
@@ -24,9 +43,6 @@ PGLib = "07a8691f-3d11-4330-951b-3c50f98338be"
 PowerModels = "c36e90e8-916a-50a6-bd94-075b64ef4655"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
-
-[sources.BatchNLPKernels]
-url = "https://github.com/klamike/BatchNLPKernels.jl"
 
 [targets]
 test = ["Test", "PowerModels", "PGLib", "Random", "MLUtils", "KernelAbstractions", "GPUArraysCore"]
