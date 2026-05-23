@@ -122,9 +122,11 @@ struct ALMMethod{T<:Real} <: AbstractPrimalDualMethod
     α::T
     num_equal::Int # TODO: There should be a way to get this from the batch model
     ρ_eq_scale::T  # extra penalty multiplier for equality constraints (default 1.0)
+    use_analytical_dual::Bool  # apply ALM dual update analytically per gradient step
+    use_dual_learning::Bool    # train the dual network; false = frozen dual throughout
 
-    function ALMMethod(batch_model::BatchModel, max_dual::T, ρmax::T, τ::T, α::T, num_equal::Int, ρ_eq_scale::T) where {T<:Real}
-        new{T}(batch_model, max_dual, ρmax, τ, α, num_equal, ρ_eq_scale)
+    function ALMMethod(batch_model::BatchModel, max_dual::T, ρmax::T, τ::T, α::T, num_equal::Int, ρ_eq_scale::T, use_analytical_dual::Bool, use_dual_learning::Bool) where {T<:Real}
+        new{T}(batch_model, max_dual, ρmax, τ, α, num_equal, ρ_eq_scale, use_analytical_dual, use_dual_learning)
     end
 end
 
@@ -146,8 +148,10 @@ function ALMMethod(;
     τ::T = 0.8,
     α::T = 10.0,
     ρ_eq_scale::T = 1.0,
+    use_analytical_dual::Bool = false,
+    use_dual_learning::Bool = true,
 ) where {T<:Real}
-    return ALMMethod(batch_model, max_dual, ρmax, τ, α, num_equal, ρ_eq_scale)
+    return ALMMethod(batch_model, max_dual, ρmax, τ, α, num_equal, ρ_eq_scale, use_analytical_dual, use_dual_learning)
 end
 
 """
@@ -386,7 +390,9 @@ function update_trainer!(
 
     # Update dual state
     trainer.dual_loss = dual_state.dual_loss
-    trainer.prev_dual_training_state = deepcopy(trainer.dual_training_state)
+    if method.use_dual_learning
+        trainer.prev_dual_training_state = deepcopy(trainer.dual_training_state)
+    end
 
     return
 end
@@ -434,27 +440,17 @@ with the dual model fixed, then the inverse is done with the dual learning metho
 updates the trainer state.
 """
 function single_train_step!(
-    method::AbstractPrimalDualMethod,
-    trainer::AbstractPrimalDualTrainer,
+    method::ALMMethod,
+    trainer::ALMTrainer,
     data;
     L_primal::Int = 1,
     L_dual::Int   = 1,
-    use_penalty_only::Bool = false,
-    use_analytical_dual::Bool = false,
 )
-    _primal_loss = if use_penalty_only
-        penalty_only_primal_loss(method)
-    elseif use_analytical_dual
-        analytical_primal_loss(method)
-    else
-        primal_loss(method)
-    end
-    _dual_loss   = dual_loss(method)
+    _primal_loss = method.use_analytical_dual ? analytical_primal_loss(method) : primal_loss(method)
     train_state_primal = trainer.primal_training_state
     train_state_dual   = trainer.dual_training_state
 
     # ----- primal phase: exactly L_primal gradient steps, dual frozen -----
-    # Cycle through data batches (reshuffled each epoch) until L_primal steps done.
     primal_states = NamedTuple[]
     primal_step = 0
     while primal_step < L_primal
@@ -471,19 +467,23 @@ function single_train_step!(
     current_state_primal = reconcile_primal(trainer, primal_states)
 
     # ----- dual phase: exactly L_dual gradient steps, primal frozen -----
+    # Skipped entirely when use_dual_learning = false (dual network stays frozen).
     dual_states = NamedTuple[]
-    dual_step = 0
-    while dual_step < L_dual
-        for θ in data
-            dual_step >= L_dual && break
-            _, _, stats, train_state_dual = Training.single_train_step!(
-                AutoZygote(), _dual_loss, (θ, trainer), train_state_dual,
-            )
-            push!(dual_states, stats)
-            dual_step += 1
+    if method.use_dual_learning
+        _dual_loss = dual_loss(method)
+        dual_step = 0
+        while dual_step < L_dual
+            for θ in data
+                dual_step >= L_dual && break
+                _, _, stats, train_state_dual = Training.single_train_step!(
+                    AutoZygote(), _dual_loss, (θ, trainer), train_state_dual,
+                )
+                push!(dual_states, stats)
+                dual_step += 1
+            end
         end
+        trainer.dual_training_state = train_state_dual
     end
-    trainer.dual_training_state = train_state_dual
     update_trainer!(method, trainer, current_state_primal, reconcile_dual(trainer, dual_states))
     return
 end
@@ -629,8 +629,6 @@ function train!(
     warmup_epochs::Int = 4,
     lr_primal::Real = 1e-4, lr_dual::Real = 1e-4,
     lr_decay::Real = 0.99,
-    use_penalty_only::Bool = false,
-    use_analytical_dual::Bool = false,
     eval_fn = nothing,
 )
     Optimisers.adjust!(trainer.primal_training_state.optimizer_state, lr_primal)
@@ -664,7 +662,7 @@ function train!(
     # ----- alternating primal/dual loop with optional lr decay -----
     last_val = typemax(Float64)
     for outer in 1:K
-        single_train_step!(method, trainer, data; L_primal = L_primal, L_dual = L_dual, use_penalty_only = use_penalty_only, use_analytical_dual = use_analytical_dual)
+        single_train_step!(method, trainer, data; L_primal = L_primal, L_dual = L_dual)
         if eval_fn !== nothing
             v = eval_fn(outer, trainer)
             if v isa Real

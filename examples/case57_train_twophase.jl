@@ -203,10 +203,10 @@ function main()
 
     method_p1 = ALMMethod(; batch_model = bm_train, num_equal = num_equal,
         max_dual = MAX_DUAL_P1, ρmax = RHO_P1, τ = TAU, α = ALPHA,
-        ρ_eq_scale = RHO_EQ_SCALE_P1)
+        ρ_eq_scale = RHO_EQ_SCALE_P1, use_analytical_dual = true)
     method_p1_test = ALMMethod(; batch_model = bm_test, num_equal = num_equal,
         max_dual = MAX_DUAL_P1, ρmax = RHO_P1, τ = TAU, α = ALPHA,
-        ρ_eq_scale = RHO_EQ_SCALE_P1)
+        ρ_eq_scale = RHO_EQ_SCALE_P1, use_analytical_dual = true)
 
     trainer = ALMTrainer(primal_model, train_state_primal, dual_model, train_state_dual, RHO_P1)
 
@@ -217,7 +217,6 @@ function main()
         K = K1, L_primal = L_PRIMAL, L_dual = L_DUAL,
         warmup_epochs = WARMUP_EPOCHS,
         lr_primal = LR_PRIMAL, lr_dual = LR_DUAL, lr_decay = LR_DECAY,
-        use_penalty_only = false, use_analytical_dual = true,
         eval_fn = eval_p1,
     )
 
@@ -231,10 +230,10 @@ function main()
 
     method_p2 = ALMMethod(; batch_model = bm_train, num_equal = num_equal,
         max_dual = MAX_DUAL_P2, ρmax = RHO_MAX_P2, τ = TAU, α = ALPHA,
-        ρ_eq_scale = RHO_EQ_SCALE_P2)
+        ρ_eq_scale = RHO_EQ_SCALE_P2, use_analytical_dual = true)
     method_p2_test = ALMMethod(; batch_model = bm_test, num_equal = num_equal,
         max_dual = MAX_DUAL_P2, ρmax = RHO_MAX_P2, τ = TAU, α = ALPHA,
-        ρ_eq_scale = RHO_EQ_SCALE_P2)
+        ρ_eq_scale = RHO_EQ_SCALE_P2, use_analytical_dual = true)
 
     eval_p2 = make_eval_fn(2, method_p2_test)
 
@@ -242,7 +241,6 @@ function main()
         K = K2, L_primal = L_PRIMAL, L_dual = L_DUAL,
         warmup_epochs = 0,   # no second warmup — primal already in good basin
         lr_primal = LR_PRIMAL, lr_dual = LR_DUAL, lr_decay = LR_DECAY,
-        use_penalty_only = false, use_analytical_dual = true,
         eval_fn = eval_p2,
     )
 

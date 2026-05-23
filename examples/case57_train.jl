@@ -34,8 +34,8 @@ const ALPHA           = parse(Float64, get(ENV, "PDL_ALPHA",           "2.0"))
 const RHO_EQ_SCALE    = parse(Float64, get(ENV, "PDL_RHO_EQ_SCALE",   "1.0"))
 const MAX_DUAL        = parse(Float64, get(ENV, "PDL_MAX_DUAL",        "1.0e6"))
 const HIDDEN_MULT          = parse(Float64, get(ENV, "PDL_HIDDEN_MULT",          "1.2"))
-const USE_PENALTY_ONLY     = parse(Bool,    get(ENV, "PDL_USE_PENALTY_ONLY",     "false"))
 const USE_ANALYTICAL_DUAL  = parse(Bool,    get(ENV, "PDL_USE_ANALYTICAL_DUAL",  "false"))
+const USE_DUAL_LEARNING    = parse(Bool,    get(ENV, "PDL_USE_DUAL_LEARNING",    "true"))
 const T_F               = Float32
 
 using L2OALM
@@ -145,11 +145,13 @@ function main()
 
     # Paper hyperparameters for AC-OPF.
     method = ALMMethod(; batch_model = bm_train, num_equal = num_equal,
-        max_dual = MAX_DUAL, ρmax = RHO_MAX, τ = TAU, α = ALPHA, ρ_eq_scale = RHO_EQ_SCALE)
+        max_dual = MAX_DUAL, ρmax = RHO_MAX, τ = TAU, α = ALPHA, ρ_eq_scale = RHO_EQ_SCALE,
+        use_analytical_dual = USE_ANALYTICAL_DUAL, use_dual_learning = USE_DUAL_LEARNING)
     trainer = ALMTrainer(primal_model, train_state_primal, dual_model, train_state_dual, RHO_INIT)
 
     method_test = ALMMethod(; batch_model = bm_test, num_equal = num_equal,
-        max_dual = MAX_DUAL, ρmax = RHO_MAX, τ = TAU, α = ALPHA, ρ_eq_scale = RHO_EQ_SCALE)
+        max_dual = MAX_DUAL, ρmax = RHO_MAX, τ = TAU, α = ALPHA, ρ_eq_scale = RHO_EQ_SCALE,
+        use_analytical_dual = USE_ANALYTICAL_DUAL, use_dual_learning = USE_DUAL_LEARNING)
     test_primal_loss = primal_loss(method_test)
 
     # ---- CSV logger setup ----
@@ -201,14 +203,12 @@ function main()
 
     eval_and_log(0, trainer)   # baseline before training
 
-    @info "Starting train!" K L_PRIMAL L_DUAL WARMUP_EPOCHS RHO_INIT RHO_MAX TAU ALPHA RHO_EQ_SCALE MAX_DUAL LR_PRIMAL LR_DUAL HIDDEN_MULT h USE_PENALTY_ONLY USE_ANALYTICAL_DUAL
+    @info "Starting train!" K L_PRIMAL L_DUAL WARMUP_EPOCHS RHO_INIT RHO_MAX TAU ALPHA RHO_EQ_SCALE MAX_DUAL LR_PRIMAL LR_DUAL HIDDEN_MULT h USE_ANALYTICAL_DUAL USE_DUAL_LEARNING
     train!(method, trainer, data;
         K = K, L_primal = L_PRIMAL, L_dual = L_DUAL,
         warmup_epochs = WARMUP_EPOCHS,
         lr_primal = LR_PRIMAL, lr_dual = LR_DUAL,
         lr_decay  = LR_DECAY,
-        use_penalty_only = USE_PENALTY_ONLY,
-        use_analytical_dual = USE_ANALYTICAL_DUAL,
         eval_fn   = eval_and_log,
     )
 
