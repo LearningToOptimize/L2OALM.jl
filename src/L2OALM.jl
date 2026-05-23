@@ -131,7 +131,7 @@ struct ALMMethod{T<:Real} <: AbstractPrimalDualMethod
 end
 
 """
-    ALMMethod(; batch_model, num_equal, max_dual=1e6, ρmax=1e6, τ=0.8, α=10.0, ρ_eq_scale=1.0)
+    ALMMethod(; batch_model, num_equal, max_dual=1e6, ρmax=1e6, τ=0.8, α=10.0, ρ_eq_scale=1.0, use_analytical_dual=true, use_dual_learning=true)
 
 Constructor for the ALM method.
 
@@ -148,7 +148,7 @@ function ALMMethod(;
     τ::T = 0.8,
     α::T = 10.0,
     ρ_eq_scale::T = 1.0,
-    use_analytical_dual::Bool = false,
+    use_analytical_dual::Bool = true,
     use_dual_learning::Bool = true,
 ) where {T<:Real}
     return ALMMethod(batch_model, max_dual, ρmax, τ, α, num_equal, ρ_eq_scale, use_analytical_dual, use_dual_learning)

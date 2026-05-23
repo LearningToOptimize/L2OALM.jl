@@ -203,10 +203,10 @@ function main()
 
     method_p1 = ALMMethod(; batch_model = bm_train, num_equal = num_equal,
         max_dual = MAX_DUAL_P1, ρmax = RHO_P1, τ = TAU, α = ALPHA,
-        ρ_eq_scale = RHO_EQ_SCALE_P1, use_analytical_dual = true)
+        ρ_eq_scale = RHO_EQ_SCALE_P1)
     method_p1_test = ALMMethod(; batch_model = bm_test, num_equal = num_equal,
         max_dual = MAX_DUAL_P1, ρmax = RHO_P1, τ = TAU, α = ALPHA,
-        ρ_eq_scale = RHO_EQ_SCALE_P1, use_analytical_dual = true)
+        ρ_eq_scale = RHO_EQ_SCALE_P1)
 
     trainer = ALMTrainer(primal_model, train_state_primal, dual_model, train_state_dual, RHO_P1)
 
@@ -230,10 +230,10 @@ function main()
 
     method_p2 = ALMMethod(; batch_model = bm_train, num_equal = num_equal,
         max_dual = MAX_DUAL_P2, ρmax = RHO_MAX_P2, τ = TAU, α = ALPHA,
-        ρ_eq_scale = RHO_EQ_SCALE_P2, use_analytical_dual = true)
+        ρ_eq_scale = RHO_EQ_SCALE_P2)
     method_p2_test = ALMMethod(; batch_model = bm_test, num_equal = num_equal,
         max_dual = MAX_DUAL_P2, ρmax = RHO_MAX_P2, τ = TAU, α = ALPHA,
-        ρ_eq_scale = RHO_EQ_SCALE_P2, use_analytical_dual = true)
+        ρ_eq_scale = RHO_EQ_SCALE_P2)
 
     eval_p2 = make_eval_fn(2, method_p2_test)
 
