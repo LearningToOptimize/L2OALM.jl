@@ -135,7 +135,7 @@ end
 Penalty rule of eq. (9): `min(α ρ, ρmax)` if `v > τ v_prev`, else `ρ`.
 Use `v_prev = Inf` at the first outer iteration (the rule applies for `k > 1`).
 
-Guarantee (`PenaltyMonotone`, checked in the tests): `ρ ≤ ρ_new ≤ max(ρ, ρmax)`.
+The penalty never decreases and never exceeds the safeguard: `ρ ≤ ρ_new ≤ max(ρ, ρmax)`.
 """
 function update_penalty(method::ALMMethod, ρ::Real, v::Real, v_prev::Real)
     return v > method.τ * v_prev ? max(ρ, min(method.α * ρ, method.ρmax)) : ρ

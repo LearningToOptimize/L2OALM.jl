@@ -18,8 +18,8 @@ include("problems.jl")
     @testset "method and pipeline" begin
         include("test_method.jl")
     end
-    @testset "named claims" begin
-        include("test_claims.jl")
+    @testset "properties of the method" begin
+        include("test_properties.jl")
     end
     @testset "Lux training (Algorithm 1)" begin
         include("test_lux.jl")

@@ -14,8 +14,8 @@ Mutable training state of PDL (Algorithm 1 of Park & Van Hentenryck, 2023):
     `ρ` (penalty used in that iteration), `violation` (eq. (8)), `primal_loss`
     and `dual_loss` (means over the last epoch of each phase).
 
-Initialise the last layer of the dual proxy at zero so that the first primal
-phase minimises the plain penalty loss, as in the paper.
+Initialize the last layer of the dual proxy at zero so that the first primal
+phase minimizes the plain penalty loss, as in the paper.
 """
 mutable struct ALMTrainer{P,D,T<:Real}
     primal::P
@@ -54,11 +54,11 @@ Run outer iterations of PDL (Algorithm 1) on the parameter matrix `inputs`
 (`num_parameters × N`, or an `L2OCore.L2ODataset`), updating `trainer` in
 place. Each outer iteration `k`:
 
- 1. **primal phase**: `primal_epochs` epochs minimising [`primal_loss`](@ref)
+ 1. **primal phase**: `primal_epochs` epochs minimizing [`primal_loss`](@ref)
     (eq. (5)) with the dual proxy frozen;
  2. computes `v_k` with [`violation_measure`](@ref) (eq. (8)) over `inputs`;
  3. freezes a copy of the dual proxy (`λ_k`);
- 4. **dual phase**: `dual_epochs` epochs minimising [`dual_loss`](@ref)
+ 4. **dual phase**: `dual_epochs` epochs minimizing [`dual_loss`](@ref)
     (eq. (7)) towards [`dual_target`](@ref) (eq. (6)) with the primal proxy and
     `λ_k` frozen;
  5. updates `ρ` with [`update_penalty`](@ref) (eq. (9)).
@@ -66,6 +66,10 @@ place. Each outer iteration `k`:
 Methods are provided by extensions: load `Lux` for `Lux.Training.TrainState`
 proxies (keywords `outer_iterations`, `primal_epochs`, `dual_epochs`,
 `batchsize`, `rng`, `ad`, `callback`; see the package guide).
+
+`train!` is not exported, because the name would clash with `Flux.train!`;
+call it as `L2OALM.train!`, or through the generic
+`L2OCore.train_proxy!(pipe.method, pipe, trainer, inputs; kwargs...)`.
 """
 function train! end
 

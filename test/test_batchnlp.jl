@@ -32,7 +32,7 @@
     end
 end
 
-@testset "KKTFixedPoint and KKTStationarity on ExaModels (QP and NLP)" begin
+@testset "KKT fixed point and stationarity on ExaModels (QP and NLP)" begin
     for (jm, exa, map) in (
         (qp_model(), qp_exa(8), qp_jump_to_exa),
         (nlp_model(), nlp_exa(8), nlp_jump_to_exa),
@@ -52,7 +52,7 @@ end
     end
 end
 
-@testset "PrimalLossGradient through the kernels" begin
+@testset "primal loss gradient through the kernels" begin
     rng = Random.Xoshiro(13)
     form = ALMFormulation(nlp_exa(8))
     X = randn(rng, 3, 4)
@@ -71,7 +71,7 @@ end
     method = ALMMethod(; α = 2.0, ρmax = 1e3)
     P = rand(rng, 2, 128)
     tr = lux_trainer(rng, 2, 3, num_rows(form), method.ρ_init; width = 16)
-    train!(
+    L2OALM.train!(
         tr,
         method,
         form,
@@ -85,10 +85,5 @@ end
     @test tr.history[end].violation < tr.history[1].violation
     out = L2OCore.predict_batch(tr, P[:, 1:B])
     Λ = project_multipliers(method, form, out[4:end, :])
-    @test check(
-        DualConeFeasible(),
-        form,
-        P[:, 1:B],
-        Prediction(; dual = to_jump_duals(Λ)),
-    ).passed
+    @test signs_ok(form, Prediction(; dual = to_jump_duals(Λ)))
 end

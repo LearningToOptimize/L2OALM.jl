@@ -57,7 +57,7 @@ function L2OALM.train!(
     for _ = 1:outer_iterations
         ρ = tr.ρ
 
-        # 1. Primal phase: minimise eq. (5) with the dual proxy frozen.
+        # 1. Primal phase: minimize eq. (5) with the dual proxy frozen.
         dual_ts = tr.dual
         primal_obj = function (model, ps, st, (P, Λ))
             Z, st_new = model(P, ps, st)

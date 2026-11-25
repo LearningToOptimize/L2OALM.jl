@@ -10,8 +10,8 @@ The problem as the augmented Lagrangian method sees it:
 
 where `c(x; p) = L2OCore.constraint_values(evaluator, X, P)` stacks every
 constraint row (variable bounds included), `l = lower` and `u = upper` may
-contain `±Inf`, and `s = sense` is `+1` for minimisation and `-1` for
-maximisation. `xlower`/`xupper` are the variable bounds (used by bound maps),
+contain `±Inf`, and `s = sense` is `+1` for minimization and `-1` for
+maximization. `xlower`/`xupper` are the variable bounds (used by bound maps),
 `equality` is `1` on rows with `l == u` and `0` elsewhere, and `bound` is `1`
 on rows that are variable bounds (`c_i(x) = x_j`) and `0` elsewhere (default:
 no bound rows). Bound rows get no multiplier when the bound map enforces the

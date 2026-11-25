@@ -89,3 +89,28 @@ nlp_jump_to_exa(Λ) = vcat(Λ[2:2, :], Λ[1:1, :], Λ[3:5, :] .+ Λ[6:8, :])
 function solve_reference(problem, P)
     return solve_instances(problem, P; optimizer = Ipopt.Optimizer, dual = true)
 end
+
+# ---------------------------------------------------------------------------
+# Evaluation helpers
+
+# Whether the multipliers of `pred` have the sign of the dual cone of their rows.
+signs_ok(prob_or_form, pred; atol = 1e-6) =
+    all(dual_sign_violation(prob_or_form, pred) .<= atol)
+
+# Largest violation of the variable bounds per instance.
+function bound_violation(prob, P, X)
+    ev = default_evaluator(prob)
+    V = L2OCore.row_violation(ev, X, P)[L2OCore.bound_rows(ev), :]
+    return size(V, 1) == 0 ? zeros(size(V, 2)) : vec(maximum(V; dims = 1))
+end
+bounds_hold(prob, P, X; atol = 1e-6) = all(bound_violation(prob, P, X) .<= atol)
+
+# Whether every column of `Y` is dual feasible and its dual bound is on the
+# correct side of the optimal value `opt` (≤ for minimization, ≥ for
+# maximization), up to `atol` relative to max(1, |opt|).
+function bounds_optimum(prob, P, Y, opt; atol = 1e-6)
+    bound, infeas = dual_bound(default_evaluator(prob), Y, P; atol)
+    s = objective_sign(prob)
+    excess = max.(s .* (bound .- opt), 0) ./ max.(1, abs.(opt))
+    return all(infeas .<= atol) && all(excess .<= atol)
+end

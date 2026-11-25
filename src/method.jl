@@ -56,9 +56,9 @@ Map applied to the raw primal output of the proxy before evaluation
 [`SigmoidBoundMap`](@ref) / [`HardSigmoidBoundMap`](@ref) (variable bounds hold
 by construction; see [`enforces_bounds`](@ref)).
 
-**Extension point.** Subtype it, add a method of [`map_primal`](@ref) and, if
-the map makes a promise, of `L2OCore.guarantees` for
-`ALMMethod{<:Real,<:AbstractAugmentation,YourMap}`.
+**Extension point.** Subtype it and add a method of [`map_primal`](@ref)
+and, if the map always returns points inside the variable bounds, of
+[`enforces_bounds`](@ref).
 """
 abstract type AbstractBoundMap end
 
@@ -87,8 +87,8 @@ Maps each raw output `z` into its variable's bounds:
 `l + (u - l) σ(z)` for two finite bounds, `l + softplus(z)` for a lower bound
 only, `u - softplus(-z)` for an upper bound only, `z` for a free variable
 (and the fixed value for a fixed variable), followed by a `clamp` to absorb
-rounding. Guarantee: `BoundFeasible` (variable bounds hold exactly). Unlike a
-`clamp`, the map has a non-zero gradient everywhere.
+rounding, so the variable bounds hold exactly. Unlike a `clamp`, the map has
+a non-zero gradient everywhere.
 """
 struct SigmoidBoundMap <: AbstractBoundMap end
 enforces_bounds(::SigmoidBoundMap) = true
@@ -99,8 +99,9 @@ enforces_bounds(::SigmoidBoundMap) = true
 The output layer of the paper's AC-OPF experiments (Appendix C.2): for a
 variable with two finite bounds, the convex combination
 `l + (u - l) hardσ(z)` with `hardσ(z) = clamp(z/6 + 1/2, 0, 1)`. Variables with
-at most one finite bound are mapped as in [`SigmoidBoundMap`](@ref). Guarantee:
-`BoundFeasible`. The gradient is zero where `hardσ` saturates (`|z| ≥ 3`), which
+at most one finite bound are mapped as in [`SigmoidBoundMap`](@ref). The
+variable bounds hold exactly. The gradient is zero where `hardσ` saturates
+(`|z| ≥ 3`), which
 is why [`SigmoidBoundMap`](@ref) is the default bound-enforcing map.
 """
 struct HardSigmoidBoundMap <: AbstractBoundMap end
@@ -116,7 +117,7 @@ Park & Van Hentenryck (AAAI 2023), as an `L2OCore.AbstractPrimalDualMethod`.
 A primal proxy `x̂(p)` and a dual proxy `λ̂(p)` are trained alternately
 (Algorithm 1 of the paper; see [`train!`](@ref)):
 
-  - primal phase: minimise [`primal_loss`](@ref) (eq. (5)) with `λ̂` frozen;
+  - primal phase: minimize [`primal_loss`](@ref) (eq. (5)) with `λ̂` frozen;
   - dual phase: regress `λ̂` onto [`dual_target`](@ref) (eq. (6)) with
     [`dual_loss`](@ref) (eq. (7));
   - penalty: [`update_penalty`](@ref) (eq. (9)) from the
@@ -137,18 +138,17 @@ Hyper-parameters (paper notation):
   - `dual_norm_eps`: smoothing of the norms of eq. (7) so the loss is
     differentiable when the prediction equals the target.
 
-Assumptions: the problem class is `LinearConic` (box rows only),
-`ConvexQuadratic` or `SmoothNonlinear` (see `L2OCore.supports`); training
+Supported problem classes are `LinearConic` (box rows only),
+`ConvexQuadratic` and `SmoothNonlinear` (see `L2OCore.supports`). Training
 needs an evaluator whose `batch_objective` and `constraint_values` are
 differentiable (`MatrixEvaluator`, or the BatchNLPKernels evaluator for
 nonlinear problems).
 
-Guarantees (see `L2OCore.guarantees`): the completed multipliers always have
-the sign of the dual cone of their row ([`DualConeFeasible`](@ref)); with
-a bound-enforcing map the variable bounds hold (`BoundFeasible`). The
-method makes **no** feasibility or optimality promise for the remaining
-constraints: PDL drives violations down during training but certifies nothing
-on unseen instances.
+The completed multipliers always have the sign of the dual cone of their row
+(see [`dual_sign_violation`](@ref)); with a bound-enforcing map the variable
+bounds hold exactly. The remaining constraints are not enforced: PDL drives
+violations down during training, and on unseen instances they are measured
+with `L2OCore.evaluate`.
 """
 struct ALMMethod{T<:Real,A<:AbstractAugmentation,B<:AbstractBoundMap} <:
        AbstractPrimalDualMethod
@@ -206,11 +206,6 @@ end
 L2OCore.supports(::ALMMethod, ::L2OCore.LinearConic) = true
 L2OCore.supports(::ALMMethod, ::L2OCore.ConvexQuadratic) = true
 L2OCore.supports(::ALMMethod, ::L2OCore.SmoothNonlinear) = true
-
-L2OCore.guarantees(::ALMMethod) = (DualConeFeasible(),)
-L2OCore.guarantees(
-    ::ALMMethod{<:Real,<:AbstractAugmentation,<:Union{SigmoidBoundMap,HardSigmoidBoundMap}},
-) = (BoundFeasible(), DualConeFeasible())
 
 L2OCore.decompose(problem::ParametricProblem, ::ALMMethod) = ALMDecomposition(problem)
 
@@ -288,7 +283,7 @@ end
 
 Convert between the L2OALM multiplier convention (`λ` in the normal cone of the
 row's box, see [`ALMFormulation`](@ref)) and the `JuMP.dual` convention used by
-`L2OCore.Prediction` (`y = -λ`, for both minimisation and maximisation).
+`L2OCore.Prediction` (`y = -λ`, for both minimization and maximization).
 """
 to_jump_duals(Λ) = -Λ
 

@@ -24,7 +24,7 @@ end
     ref = solve_reference(pipe.problem, Ptest)
     tr = lux_trainer(rng, 2, 3, num_duals(pipe.problem), method.ρ_init)
     calls = Ref(0)
-    train!(
+    L2OALM.train!(
         tr,
         pipe,
         train;
@@ -37,10 +37,10 @@ end
     )
     @test tr.iteration == 10 && length(tr.history) == 10 && calls[] == 10
     hist = tr.history
-    @test all(diff([h.ρ for h in hist]) .>= 0)                  # PenaltyMonotone
+    @test all(diff([h.ρ for h in hist]) .>= 0)                  # the penalty never decreases
     @test hist[end].violation < hist[1].violation / 4
     pred = complete(pipe, Ptest, L2OCore.predict_batch(tr, Ptest))
-    @test check(DualConeFeasible(), pipe.problem, Ptest, pred).passed
+    @test signs_ok(pipe.problem, pred)
     rep = evaluate(pipe, Ptest, pred)
     gap = abs.(rep.objective .- ref.objective) ./ max.(1, abs.(ref.objective))
     @test sum(gap) / length(gap) < 0.05
@@ -64,7 +64,7 @@ end
     pipe = L2OPipeline(ParametricProblem(qp_model()), method)
     P = 2 .* rand(rng, 2, 64) .- 1
     tr = lux_trainer(rng, 2, 3, num_duals(pipe.problem), 1.0; width = 8)
-    train!(
+    L2OALM.train!(
         tr,
         pipe,
         P;
@@ -75,12 +75,11 @@ end
         rng = rng,
     )
     pred = complete(pipe, P, L2OCore.predict_batch(tr, P))
-    for g in guarantees(method)
-        @test check(g, pipe.problem, P, pred).passed
-    end
+    @test signs_ok(pipe.problem, pred)
+    @test bounds_hold(pipe.problem, P, pred.primal)
 end
 
-@testset "AlgorithmOrder: v_k uses the dual proxy before dual learning" begin
+@testset "Algorithm 1 order: v_k uses the dual proxy before dual learning" begin
     # Algorithm 1, lines 2-10: primal phase, v_k (eq. 8) with the current dual
     # network, copy, dual phase, then the penalty update with the ρ used above.
     rng = Random.Xoshiro(21)
@@ -90,7 +89,7 @@ end
     P = 2 .* rand(rng, 2, 32) .- 1
     tr = lux_trainer(rng, 2, 3, num_duals(pipe.problem), 1.0; width = 8)
     dual0 = deepcopy(tr.dual)
-    train!(
+    L2OALM.train!(
         tr,
         pipe,
         P;

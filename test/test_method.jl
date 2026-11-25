@@ -29,15 +29,12 @@ L2OCore.supports(::_OtherMethod, ::L2OCore.ConvexQuadratic) = true
     @test_throws ArgumentError ALMMethod(; dual_norm_eps = -1.0)
 end
 
-@testset "supports and guarantees" begin
+@testset "supported problem classes" begin
     m = ALMMethod()
     @test supports(m, LinearConic())
     @test supports(m, ConvexQuadratic())
     @test supports(m, SmoothNonlinear())
     @test !supports(m, MixedInteger())
-    @test guarantees(m) == (DualConeFeasible(),)
-    @test guarantees(ALMMethod(; bounds = SigmoidBoundMap())) ==
-          (BoundFeasible(), DualConeFeasible())
     mi = Model()
     @variable(mi, p in MOI.Parameter(1.0))
     @variable(mi, y, Bin)
@@ -123,11 +120,9 @@ end
         out = 10 .* randn(rng, output_dimension(pipe), 7)
         pred = complete(pipe, P, out)
         @test size(pred.primal) == (3, 7) && size(pred.dual) == (9, 7)
-        @test check(DualConeFeasible(), prob, P, pred).passed
+        @test signs_ok(prob, pred)
         @test maximum(abs, pred.dual) <= 3.0
-        for g in guarantees(method)
-            @test check(g, prob, P, pred).passed
-        end
+        bounds isa SigmoidBoundMap && @test bounds_hold(prob, P, pred.primal)
         bounds isa NoBoundMap && @test pred.primal == out[1:3, :]
         # a single instance as a vector
         @test size(complete(pipe, P[:, 1], out[:, 1]).primal) == (3, 1)
@@ -144,27 +139,20 @@ end
     @test ds.primal === nothing && ds.dual === nothing
 end
 
-@testset "DualConeFeasible detects sign errors" begin
+@testset "dual_sign_violation detects sign errors" begin
     prob = ParametricProblem(qp_model())
     pipe = L2OPipeline(prob, ALMMethod())
     form = ALMFormulation(pipe)
-    P = zeros(2, 1)
     # JuMP convention: GreaterThan rows need y ≥ 0, LessThan rows y ≤ 0.
     y = zeros(9, 1)
     y[2] = -1.0     # GreaterThan with a negative dual
-    r = check(DualConeFeasible(), prob, P, Prediction(; dual = y))
-    @test !r.passed && r.worst ≈ 1.0
-    @test !check(DualConeFeasible(), form, P, Prediction(; dual = y)).passed
+    @test dual_sign_violation(prob, Prediction(; dual = y)) ≈ [1.0]
+    @test dual_sign_violation(form, y) ≈ [1.0]
     y[2] = 1.0
     y[3] = -2.0
-    @test check(DualConeFeasible(), prob, P, Prediction(; dual = y)).passed
-    @test check(DualConeFeasible(), form, P, Prediction(; dual = vec(y))).passed
-    @test_throws ArgumentError check(
-        DualConeFeasible(),
-        prob,
-        P,
-        Prediction(; primal = zeros(3, 1)),
-    )
+    @test dual_sign_violation(prob, Prediction(; dual = y)) == [0.0]
+    @test dual_sign_violation(form, vec(y)) == [0.0]
+    @test_throws ArgumentError dual_sign_violation(prob, Prediction(; primal = zeros(3, 1)))
 end
 
 @testset "SigmoidBoundMap" begin
@@ -202,14 +190,15 @@ end
     @test to_jump_duals(Λ) == -Λ
 end
 
-@testset "WrapperComposes: L2OCore method wrappers compose with ALMMethod" begin
+@testset "L2OCore method wrappers compose with ALMMethod" begin
     prob = ParametricProblem(qp_model())
     inner = ALMMethod(; bounds = SigmoidBoundMap())
     wpipe = L2OPipeline(prob, _ConstantTerm(inner, 0.25))
     pipe = L2OPipeline(prob, inner)
     rng = Random.Xoshiro(30)
     P, out = randn(rng, 2, 3), randn(rng, 12, 3)
-    @test guarantees(wpipe.method) == guarantees(inner)
+    @test L2OCore.method_family(wpipe.method) == L2OCore.method_family(inner)
+    @test supports(wpipe.method, ConvexQuadratic())
     @test L2OCore.loss(wpipe, P, out; ρ = 2.0, proxy = identity) ≈
           L2OCore.loss(pipe, P, out; ρ = 2.0) + 0.25
     @test complete(wpipe, P, out).dual == complete(pipe, P, out).dual

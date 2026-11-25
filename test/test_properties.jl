@@ -1,5 +1,6 @@
-# Each testset name is a named claim documented in docs/src/theory.md; a formal
-# proof can later attach to the same name.
+# Numerical checks of the properties of the method stated in docs/src/theory.md:
+# fixed points at KKT pairs, gradients, the paper's equations (5)-(9), signs of
+# the multipliers and dual bounds.
 
 const AUGS = (PDLAugmentation(), PHRAugmentation())
 const P_TEST = [0.5 1.0 -0.3 0.8; 0.2 -1.0 0.5 0.0]
@@ -15,9 +16,9 @@ end
 
 fd_grad(f, X) = FiniteDifferences.grad(central_fdm(5, 1), f, X)[1]
 
-@testset "KKTFixedPoint: dual update and violation vanish at a KKT pair" begin
-    # Assumption: (x*, λ*) is a KKT pair (Ipopt, tol 1e-8). Claim: the ALM
-    # multiplier update (eq. 6) is the identity and v (eq. 8) is 0.
+@testset "dual update and violation vanish at a KKT pair" begin
+    # At a KKT pair (x*, λ*) (Ipopt, tol 1e-8) the multiplier update (eq. 6)
+    # is the identity and v (eq. 8) is 0.
     for (name, pipe, P) in (
         ("QP min", qp_pipe(), P_TEST),
         ("QP max", qp_pipe(; sense = MAX_SENSE), P_TEST),
@@ -33,8 +34,8 @@ fd_grad(f, X) = FiniteDifferences.grad(central_fdm(5, 1), f, X)[1]
     end
 end
 
-@testset "KKTStationarity: primal loss is stationary at a KKT pair" begin
-    # Claim: ∇ₓ L_ρ(x*, λ*) = 0 for both augmentations (eq. 5 and PHR).
+@testset "primal loss is stationary at a KKT pair" begin
+    # ∇ₓ L_ρ(x*, λ*) = 0 for both augmentations (eq. 5 and PHR).
     for aug in AUGS, sense in (MIN_SENSE, MAX_SENSE)
         pipe = qp_pipe(; sense = sense, augmentation = aug)
         X, Λ, _ = kkt_pair(pipe, P_TEST)
@@ -53,7 +54,7 @@ end
     end
 end
 
-@testset "PrimalLossGradient: Zygote equals finite differences" begin
+@testset "primal loss gradient: Zygote equals finite differences" begin
     rng = Random.Xoshiro(3)
     for aug in AUGS
         pipe = qp_pipe(; augmentation = aug)
@@ -86,7 +87,7 @@ qp_obj(X) = vec(sum(X .^ 2; dims = 1) .+ X[1:1, :] .- 3 .* X[3:3, :])
 # (μ, λ) of the paper → L2OALM rows [eq, ≥, ≤, lb×3, ub×3].
 qp_paper_to_rows(μ, λ) = vcat(λ, .-μ[1:1, :], μ[2:2, :], .-μ[3:5, :], μ[6:8, :])
 
-@testset "PDLMatchesEq5: PDLAugmentation is the paper's primal loss" begin
+@testset "PDLAugmentation is the primal loss of eq. (5)" begin
     rng = Random.Xoshiro(4)
     pipe = qp_pipe()
     form = ALMFormulation(pipe)
@@ -101,7 +102,7 @@ qp_paper_to_rows(μ, λ) = vcat(λ, .-μ[1:1, :], μ[2:2, :], .-μ[3:5, :], μ[6
     @test primal_loss(pipe.method, form, P_TEST, X, Λ; ρ = ρ) ≈ sum(eq5) / 4
 end
 
-@testset "DualTargetMatchesEq6 and ViolationMeasureMatchesEq8" begin
+@testset "dual target is eq. (6) and violation measure is eq. (8)" begin
     rng = Random.Xoshiro(5)
     pipe = qp_pipe()
     form = ALMFormulation(pipe)
@@ -117,7 +118,7 @@ end
           eq8
 end
 
-@testset "PHRGradientIsDualTarget" begin
+@testset "gradient of the PHR term is the dual target" begin
     # ∂/∂c of the PHR term is λ + ρσ(x, λ), the unclipped eq. (6) update.
     rng = Random.Xoshiro(6)
     pipe = qp_pipe(; augmentation = PHRAugmentation(), max_dual = 1e12)
@@ -131,7 +132,7 @@ end
     @test gC ≈ dual_target(pipe.method, form, P_TEST, X, Λ; ρ = ρ)
 end
 
-@testset "PenaltyLossAtZeroMultipliers" begin
+@testset "zero multipliers give the quadratic penalty loss" begin
     # With λ = 0 both augmentations reduce to f + ρ/2 ‖v(x)‖² (eq. (4) of the paper).
     rng = Random.Xoshiro(7)
     X = 3 .* randn(rng, 3, 4)
@@ -145,7 +146,7 @@ end
     end
 end
 
-@testset "SenseInvariance: max f equals min -f" begin
+@testset "max f and min -f give the same losses and targets" begin
     rng = Random.Xoshiro(8)
     X = randn(rng, 3, 4)
     Λ = randn(rng, 9, 4)
@@ -156,7 +157,7 @@ end
           dual_target(pmax, P_TEST, X, Λ; ρ = 2.0)
 end
 
-@testset "DualTargetInCone: targets satisfy the sign pattern and max_dual" begin
+@testset "dual targets have the dual-cone signs and respect max_dual" begin
     rng = Random.Xoshiro(9)
     pipe = qp_pipe(; max_dual = 5.0)
     form = ALMFormulation(pipe)
@@ -165,19 +166,14 @@ end
         Λ = 10 .* randn(rng, 9, 6)
         ρ = exp(4 * randn(rng))
         T = dual_target(pipe, P_TEST[:, rand(rng, 1:4, 6)], X, Λ; ρ = ρ)
-        @test check(
-            DualConeFeasible(),
-            form,
-            nothing,
-            Prediction(; dual = to_jump_duals(T)),
-        ).passed
+        @test signs_ok(form, Prediction(; dual = to_jump_duals(T)))
         @test maximum(abs, T) <= 5.0
         Πλ = project_multipliers(pipe.method, form, Λ)
         @test project_multipliers(pipe.method, form, Πλ) == Πλ     # idempotent
     end
 end
 
-@testset "PenaltyMonotone: eq. (9) never decreases ρ and respects ρmax" begin
+@testset "penalty rule (9) never decreases ρ and respects ρmax" begin
     rng = Random.Xoshiro(10)
     m = ALMMethod(; ρ_init = 1.0, ρmax = 50.0, α = 3.0, τ = 0.5)
     ρ, vprev = m.ρ_init, Inf
@@ -193,7 +189,7 @@ end
     @test update_penalty(m, 40.0, 1.0, 1.0) == 50.0
 end
 
-@testset "DualLossMatchesEq7" begin
+@testset "dual loss is eq. (7)" begin
     rng = Random.Xoshiro(11)
     for ε in (0.0, 1e-8)
         pipe = qp_pipe(; dual_norm_eps = ε)
@@ -211,30 +207,24 @@ end
     @test all(isfinite, g) && maximum(abs, g) == 0
 end
 
-@testset "ValidDualBoundStrictlyConvex: sign-feasible multipliers bound a strictly convex QP" begin
-    # Assumption: Q ≻ 0 (here Q = 2I), so the Lagrangian is bounded below in x for
-    # every multiplier; then any DualConeFeasible prediction gives a valid bound
-    # by weak duality (L2OCore.dual_bound), even an untrained one.
+@testset "sign-feasible multipliers give a dual bound on a strictly convex QP" begin
+    # Q ≻ 0 (here Q = 2I), so the Lagrangian is bounded below in x for every
+    # multiplier; then any sign-feasible prediction gives a valid bound by weak
+    # duality (L2OCore.dual_bound), even an untrained one.
     rng = Random.Xoshiro(15)
     pipe = qp_pipe()
     ref = solve_reference(pipe.problem, P_TEST)
     for _ = 1:5
         out = 5 .* randn(rng, output_dimension(pipe), size(P_TEST, 2))
         pred = complete(pipe, P_TEST, out)
-        @test check(
-            ValidDualBound(),
-            pipe.problem,
-            P_TEST,
-            pred;
-            reference = ref.objective,
-        ).passed
+        @test bounds_optimum(pipe.problem, P_TEST, pred.dual, ref.objective)
     end
 end
 
 # ---------------------------------------------------------------------------
-# Claims added by the theory audit against the paper's full text.
+# Details of the paper's full text: bound handling and the PHR variant.
 
-@testset "BoundRowsNotDualized: Y is handled by the bound map, as in the paper" begin
+@testset "variable bounds are not dualized when the output map enforces them" begin
     # Paper, Sec. 3.2/4 and App. C.2: only g and h get multipliers; the
     # domain Y is enforced by the output layer. With a bound-enforcing map the
     # variable-bound rows get zero multipliers and zero dual targets.
@@ -251,9 +241,8 @@ end
         @test all(iszero, T[4:9, :])
         pred = complete(pipe, P_TEST, 5 .* randn(rng, 12, 4))
         @test all(iszero, pred.dual[4:9, :])
-        for g in guarantees(pipe.method)
-            @test check(g, pipe.problem, P_TEST, pred).passed
-        end
+        @test signs_ok(pipe.problem, pred)
+        @test bounds_hold(pipe.problem, P_TEST, pred.primal)
     end
     # Without a bound map the bounds are ordinary rows with multipliers.
     @test !enforces_bounds(NoBoundMap())
@@ -262,7 +251,7 @@ end
     @test Λ[7:9, 1] == ones(3)
 end
 
-@testset "PHRMatchesPDLOnEqualityAndViolatedRows" begin
+@testset "PHR and PDL agree on equality rows and violated rows" begin
     # The two augmentations coincide on equality rows and on violated
     # inequality rows (docs, Theory: "(B2) vs (B3)").
     pipe = qp_pipe()

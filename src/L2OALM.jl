@@ -14,7 +14,8 @@ with broadcasts and reductions only so that they differentiate with array AD
 and run on GPU arrays. Package extensions add
 
   - `L2OALMLuxExt` (load `Lux`): the training loop of Algorithm 1 for two
-    `Lux.Training.TrainState`s;
+    `Lux.Training.TrainState`s (`L2OALM.train!`, also reachable as
+    `L2OCore.train_proxy!`);
   - `L2OALMBatchNLPKernelsExt` (load `BatchNLPKernels`): an evaluator for
     ExaModels problems that evaluates the batch with KernelAbstractions
     kernels (CPU or GPU).
@@ -28,10 +29,7 @@ import Random
 
 using L2OCore:
     AbstractEvaluator,
-    AbstractGuarantee,
     AbstractPrimalDualMethod,
-    BoundFeasible,
-    CheckResult,
     L2ODataset,
     L2OPipeline,
     ParametricProblem,
@@ -40,7 +38,7 @@ using L2OCore:
 include("formulation.jl")
 include("method.jl")
 include("losses.jl")
-include("guarantees.jl")
+include("evaluation.jl")
 include("trainer.jl")
 
 export ALMMethod,
@@ -65,8 +63,7 @@ export ALMMethod,
     dual_loss,
     violation_measure,
     update_penalty,
-    DualConeFeasible,
-    ALMTrainer,
-    train!
+    dual_sign_violation,
+    ALMTrainer
 
 end # module L2OALM
