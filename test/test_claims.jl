@@ -210,3 +210,17 @@ end
     g = Zygote.gradient(l -> dual_loss(pipe, l, T), T)[1]
     @test all(isfinite, g) && maximum(abs, g) == 0
 end
+
+@testset "ValidDualBoundStrictlyConvex: sign-feasible multipliers bound a strictly convex QP" begin
+    # Assumption: Q ≻ 0 (here Q = 2I), so the Lagrangian is bounded below in x for
+    # every multiplier; then any DualConeFeasible prediction gives a valid bound
+    # by weak duality (L2OCore.dual_bound), even an untrained one.
+    rng = Random.Xoshiro(15)
+    pipe = qp_pipe()
+    ref = solve_reference(pipe.problem, P_TEST)
+    for _ = 1:5
+        out = 5 .* randn(rng, output_dimension(pipe), size(P_TEST, 2))
+        pred = complete(pipe, P_TEST, out)
+        @test check(ValidDualBound(), pipe.problem, P_TEST, pred; reference = ref.objective).passed
+    end
+end

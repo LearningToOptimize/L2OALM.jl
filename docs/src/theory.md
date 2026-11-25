@@ -200,6 +200,7 @@ attach to the same name later.
 | `SenseInvariance` | — | the losses of ``\max f`` and ``\min -f`` coincide |
 | [`DualConeFeasible`](@ref) | — | completed multipliers have the sign of their row's dual cone (by projection) |
 | `BoundFeasible` | `bounds = SigmoidBoundMap()` | variable bounds hold exactly (by construction) |
+| `ValidDualBoundStrictlyConvex` | convex QP with ``Q \succ 0`` (Lagrangian bounded below in ``x`` for every multiplier) | completed multipliers give a valid bound `L2OCore.dual_bound` ``\le`` OPT (weak duality) |
 
 *Proof sketches.* `KKTFixedPoint`: by (B-NC), complementarity gives
 ``c^\star = \Pi(c^\star + \lambda^\star/\rho)``, so ``\sigma = 0`` and (B4) is
@@ -211,8 +212,11 @@ s\nabla f + \nabla c^\top \lambda^\star``.
 
 **Not guaranteed.** The method does not certify feasibility of the predicted
 ``x̂(p)`` (beyond variable bounds with `SigmoidBoundMap`), optimality, or a
-valid dual bound (`L2OCore.ValidDualBound`): the predicted multipliers satisfy
-sign conditions but not Lagrangian stationarity. Classical ALM convergence
+valid dual bound (`L2OCore.ValidDualBound`) in general: the predicted
+multipliers satisfy sign conditions but not Lagrangian stationarity. The
+exception is `ValidDualBoundStrictlyConvex` above, which follows from weak
+duality alone; the method's `guarantees` do not list it because it depends on
+the problem, not on the method. Classical ALM convergence
 (Andreani et al., 2008, on which the penalty rule is modelled) concerns exact
 or approximate minimisation per instance; it does not transfer to stochastic
 training of a finite network on sampled instances, and the paper does not
