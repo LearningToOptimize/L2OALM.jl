@@ -9,6 +9,12 @@ JuMP = "4076af6c-e467-56ae-b986-b466b2749572"
 L2OCore = "53c59b28-8e5d-4af1-a2cf-8fe137dcdc09"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 
+[weakdeps]
+Lux = "b2108857-7c20-44ae-9111-449ecde12c47"
+
+[extensions]
+L2OALMLuxExt = "Lux"
+
 [sources]
 L2OCore = {url = "https://github.com/LearningToOptimize/LearningToOptimize.jl", rev = "ar/l2ocore-design", subdir = "lib/L2OCore"}
 
@@ -16,5 +22,6 @@ L2OCore = {url = "https://github.com/LearningToOptimize/LearningToOptimize.jl", 
 ChainRulesCore = "1.20"
 JuMP = "1.15"
 L2OCore = "0.1"
+Lux = "1"
 Random = "1"
 julia = "1.10"
