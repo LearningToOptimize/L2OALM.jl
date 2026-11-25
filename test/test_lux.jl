@@ -79,3 +79,35 @@ end
         @test check(g, pipe.problem, P, pred).passed
     end
 end
+
+@testset "AlgorithmOrder: v_k uses the dual proxy before dual learning" begin
+    # Algorithm 1, lines 2-10: primal phase, v_k (eq. 8) with the current dual
+    # network, copy, dual phase, then the penalty update with the ρ used above.
+    rng = Random.Xoshiro(21)
+    method = ALMMethod(; α = 3.0)
+    pipe = L2OPipeline(ParametricProblem(qp_model()), method)
+    form = ALMFormulation(pipe)
+    P = 2 .* rand(rng, 2, 32) .- 1
+    tr = lux_trainer(rng, 2, 3, num_duals(pipe.problem), 1.0; width = 8)
+    dual0 = deepcopy(tr.dual)
+    train!(
+        tr,
+        pipe,
+        P;
+        outer_iterations = 1,
+        primal_epochs = 3,
+        dual_epochs = 3,
+        batchsize = 32,
+        rng = rng,
+    )
+    X = map_primal(
+        method,
+        form,
+        first(tr.primal.model(P, tr.primal.parameters, Lux.testmode(tr.primal.states))),
+    )
+    Λ0 = first(dual0.model(P, dual0.parameters, Lux.testmode(dual0.states)))
+    @test tr.history[1].violation ≈ violation_measure(method, form, P, X, Λ0; ρ = 1.0)
+    @test tr.history[1].ρ == 1.0
+    @test tr.ρ == 1.0                       # k = 1: no update (v_0 undefined)
+    @test tr.dual.parameters != dual0.parameters   # the dual phase did run
+end
