@@ -3,8 +3,8 @@
     dual_sign_violation(form::ALMFormulation, prediction) -> Vector
 
 Per instance, the largest violation of the sign conditions of the dual cone by
-the multipliers of `prediction` (a [`Prediction`](@ref L2OCore.Prediction) with
-a dual block, or a `num_duals × B` matrix / length-`num_duals` vector), in the
+the multipliers of `prediction` (an `L2OCore.Prediction` with a dual
+block, or a `num_duals × B` matrix / length-`num_duals` vector), in the
 `JuMP.dual` convention: `y ≥ 0` for `GreaterThan`/`Nonnegatives` rows,
 `y ≤ 0` for `LessThan`/`Nonpositives` rows, any sign for equalities and
 two-sided intervals.
