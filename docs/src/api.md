@@ -45,12 +45,6 @@ violation_measure
 update_penalty
 ```
 
-## Guarantees
-
-```@docs
-DualConeFeasible
-```
-
 ## Training
 
 ```@docs
@@ -65,6 +59,12 @@ L2OCore.complete(::ALMMethod, ::L2OCore.L2OPipeline, ::Any, ::Any)
 L2OCore.loss(::ALMMethod, ::L2OCore.L2OPipeline, ::Any, ::Any)
 L2OCore.generate_data(::ALMMethod, ::L2OCore.L2OPipeline)
 L2OCore.train_proxy!(::ALMMethod, ::L2OCore.L2OPipeline, ::ALMTrainer, ::Any)
+```
+
+## Other exported names
+
+```@docs
+DualConeFeasible
 ```
 
 ## Extensions

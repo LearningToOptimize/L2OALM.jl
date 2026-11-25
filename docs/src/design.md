@@ -8,11 +8,11 @@ CurrentModule = L2OALM
 
 ```mermaid
 flowchart TB
-    subgraph core["L2OCore (problems, pipelines, evaluators, guarantees)"]
+    subgraph core["L2OCore (problems, pipelines, evaluators)"]
         PP["ParametricProblem (JuMP)"]
         EV["AbstractEvaluator: MatrixEvaluator, JuMPEvaluator"]
         PL["L2OPipeline(problem, method)"]
-        G["guarantees / check"]
+        EVAL["evaluate: objectives, violations"]
     end
     subgraph alm["L2OALM"]
         M["ALMMethod <: AbstractPrimalDualMethod"]
@@ -32,7 +32,7 @@ flowchart TB
     F --> L
     L --> T
     LUX --> T
-    L --> G
+    PL --> EVAL
 ```
 
 Sibling packages: [LearningToOptimize.jl](https://github.com/LearningToOptimize/LearningToOptimize.jl)
@@ -87,7 +87,7 @@ gradients appear inside a loss, so no nested AD is required.
 | framework / AD | status | evidence |
 |:--|:--|:--|
 | Lux + Zygote | supported, tested | `test/test_lux.jl`, `test/test_batchnlp.jl` |
-| any callable + Zygote | supported | losses are plain array functions; gradients checked against finite differences in `test/test_claims.jl` |
+| any callable + Zygote | supported | losses are plain array functions; gradients checked against finite differences in the test suite |
 | Flux, Enzyme, other backends | expected to work, not tested | add a `train!` method for their state types; `ad` keyword of the Lux loop accepts any ADTypes backend that Lux supports |
 
 Derivative (Sobolev) supervision, which needs input gradients inside the

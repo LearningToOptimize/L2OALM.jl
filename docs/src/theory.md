@@ -5,8 +5,8 @@ CurrentModule = L2OALM
 # Theory
 
 This page states the method as optimization problems, gives every formula the
-code implements with the equation numbers of the paper, and lists what is
-guaranteed under which assumptions. Equation numbers `(n)` refer to
+code implements with the equation numbers of the paper, and states the
+properties of the method with the hypotheses they need. Equation numbers `(n)` refer to
 
 > S. Park and P. Van Hentenryck. *Self-Supervised Primal-Dual Learning for
 > Constrained Optimization.* AAAI 2023. [arXiv:2208.09046](https://arxiv.org/abs/2208.09046).
@@ -65,8 +65,7 @@ when the bound map enforces the bounds ([`enforces_bounds`](@ref):
 rows then get zero multipliers in [`project_multipliers`](@ref) and contribute
 nothing to the losses (they are satisfied). With [`NoBoundMap`](@ref) the bounds
 are ordinary rows with multipliers and penalties — the paper's QP benchmarks
-have no variable bounds, so both choices agree there (test
-`BoundRowsNotDualized`).
+have no variable bounds, so both choices agree there.
 
 **Multiplier convention.** Row ``i`` carries one multiplier ``\lambda_i`` in the
 normal cone of ``[l_i, u_i]`` at ``c_i``: ``\lambda_i \ge 0`` acts on the upper
@@ -113,13 +112,12 @@ averaged over the batch. Row-wise ([`PDLAugmentation`](@ref)):
 ```
 
 For ``g = c - u`` the bracket is ``\mu g`` and ``v = \max(g, 0)``; for an
-equality it is ``\lambda h`` and ``v = |h|`` — exactly eq. (5) (test
-`PDLMatchesEq5`). The paper writes eq. (5) per instance and notes that the
+equality it is ``\lambda h`` and ``v = |h|`` — exactly eq. (5). The paper writes eq. (5) per instance and notes that the
 losses "generalize naturally to mini-batches" (footnote 1); L2OALM averages
 over the batch. With ``\lambda = 0`` it is the penalty loss of eq. (4) with all
 per-constraint coefficients ``\rho_{g,j} = \rho_{h,j} = \rho/2``, which is the
 paper's remark that the zero-initialised dual network makes (5) identical to
-(4) (test `PenaltyLossAtZeroMultipliers`).
+(4).
 
 The alternative [`PHRAugmentation`](@ref) is the classical
 Powell–Hestenes–Rockafellar augmented Lagrangian
@@ -132,8 +130,8 @@ Powell–Hestenes–Rockafellar augmented Lagrangian
 ```
 
 Its gradient with respect to ``c`` is ``\lambda + \rho\,\sigma`` with
-``\sigma`` from (B4): the primal step sees the multiplier one ALM update ahead
-(test `PHRGradientIsDualTarget`). The two losses coincide on equality rows
+``\sigma`` from (B4): the primal step sees the multiplier one ALM update ahead.
+The two losses coincide on equality rows
 and on violated inequality rows (``c \ge u``). On satisfied inequalities they
 differ: (B2) keeps the linear term ``\lambda (c - u)``, which keeps pushing the
 row inside, whereas the gradient of (B3) vanishes once
@@ -153,8 +151,8 @@ row-wise ([`dual_target`](@ref))
 ```
 
 For ``g = c - u``: ``\sigma = \max(g, -\mu/\rho)`` and
-``\lambda + \rho\sigma = \max(\mu + \rho g, 0)``; for an equality ``\sigma = h``
-(test `DualTargetMatchesEq6`). ``\Pi_M`` ([`project_multipliers`](@ref)) clips
+``\lambda + \rho\sigma = \max(\mu + \rho g, 0)``; for an equality ``\sigma = h``.
+``\Pi_M`` ([`project_multipliers`](@ref)) clips
 to the sign pattern of the row and to ``[-M, M]`` with `M = max_dual`.
 
 ### Dual loss — eq. (7)
@@ -174,9 +172,8 @@ implemented as ([`dual_loss`](@ref))
 \tag{B5}
 ```
 
-where ``\mathcal H`` are the equality rows and ``\mathcal G`` all others
-(test `DualLossMatchesEq7`, with ``\varepsilon = 0`` and the default
-``10^{-8}``). The norms are not squared, as in eq. (7); the paper leaves the
+where ``\mathcal H`` are the equality rows and ``\mathcal G`` all others;
+with ``\varepsilon = 0``, (B5) is eq. (7). The norms are not squared, as in eq. (7); the paper leaves the
 norm unspecified ("``\|\cdot\|`` represents an arbitrary norm", §3.1) and
 L2OALM uses the Euclidean norm.
 
@@ -188,7 +185,7 @@ v_k = \max_{\text{training set}} \max\big(\|h\|_\infty, \|\boldsymbol\sigma\|_\i
 ```
 
 which is ``\max_{i,k} |\sigma_{ik}|`` with ``\sigma`` of (B4)
-([`violation_measure`](@ref), test `ViolationMeasureMatchesEq8`). The paper
+([`violation_measure`](@ref)). The paper
 prints ``\sigma_j = \max(g_j, -\lambda_{k,j}/\rho)`` for ``j \in \mathcal G``,
 i.e. with the letter of the equality multipliers; since ``j`` ranges over the
 inequalities we read it as ``\mu_{k,j}``, the multiplier of ``g_j`` (as in
@@ -207,8 +204,7 @@ or (B3) with the dual proxy frozen; (ii) ``v_k`` by (8); (iii) a frozen copy
 ``\lambda_k`` of the dual proxy; (iv) the dual phase on (B5) towards (B4);
 (v) the penalty rule (B7). This is the order of Algorithm 1, lines 2–10:
 ``v_k`` uses the dual network *before* dual learning, the dual targets use
-the current ``\rho``, and ``\rho`` changes only after dual learning (test
-`AlgorithmOrder`). The rule applies for ``k > 1`` (§4.3; ``v_0`` is not
+the current ``\rho``, and ``\rho`` changes only after dual learning. The rule applies for ``k > 1`` (§4.3; ``v_0`` is not
 defined), implemented as ``v_0 = \infty``. The dual proxy's last layer should
 start at zero ("readily achievable by imposing the initial weights and bias
 parameters of the final layer of ``D_\phi`` to be zero", §4.1), so that the
@@ -222,50 +218,49 @@ when the validation loss exceeds the best one; grids
 ``\rho_{\max} \in \{10^3, 5\cdot 10^3, 10^4, 5\cdot 10^4\}``,
 ``\alpha \in \{1, 1.5, 2, 5, 10\}``.
 
-## What is guaranteed
+## Properties of the method
 
-Each claim has a name; the test suite checks it numerically and a proof can
-attach to the same name later.
+The following facts follow directly from the formulas above.
 
-| name | assumptions | claim |
-|:--|:--|:--|
-| `KKTFixedPoint` | ``(x^\star, \lambda^\star)`` satisfies (B-KKT) for instance ``p`` | for every ``\rho > 0``, (B4) returns ``\lambda^\star`` (if ``\lvert\lambda^\star\rvert \le M``) and ``v = 0`` |
-| `KKTStationarity` | as above, ``f, c`` differentiable | ``\nabla_x \mathcal L_p(x^\star \mid \lambda^\star) = 0`` for (B2) and (B3) |
-| `PHRGradientIsDualTarget` | — | ``\partial (B3) / \partial c = \lambda + \rho\sigma`` |
-| `PDLMatchesEq5`, `DualTargetMatchesEq6`, `DualLossMatchesEq7`, `ViolationMeasureMatchesEq8` | — | the box forms reduce to the paper's equations |
-| `PenaltyMonotone` | ``\alpha > 1`` | ``\rho`` never decreases and never exceeds ``\max(\rho_0, \rho_{\max})`` |
-| `DualTargetInCone` | — | targets satisfy the row sign pattern and ``\lvert t \rvert \le M``; ``\Pi_M`` is idempotent |
-| `SenseInvariance` | — | the losses of ``\max f`` and ``\min -f`` coincide |
-| [`DualConeFeasible`](@ref) | — | completed multipliers have the sign of their row's dual cone (by projection) |
-| `BoundFeasible` | `bounds = SigmoidBoundMap()` or `HardSigmoidBoundMap()` | variable bounds hold exactly (by construction) |
-| `BoundRowsNotDualized` | the bound map enforces the bounds | variable-bound rows have zero multipliers and zero dual targets, as in the paper |
-| `PHRMatchesPDLOnEqualityAndViolatedRows` | — | (B2) = (B3) on equality rows and violated inequality rows |
-| `AlgorithmOrder` | — | `train!` follows Algorithm 1: ``v_k`` from the pre-dual-learning network, ``\rho`` updated last, no update at ``k = 1`` |
-| `ValidDualBoundStrictlyConvex` | convex QP with ``Q \succ 0`` (Lagrangian bounded below in ``x`` for every multiplier) | completed multipliers give a valid bound `L2OCore.dual_bound` ``\le`` OPT (weak duality) |
+  - **KKT points are fixed points.** If ``(x^\star, \lambda^\star)`` satisfies
+    (B-KKT) for an instance ``p`` and ``\lvert\lambda^\star\rvert \le M``,
+    then for every ``\rho > 0`` the dual target (B4) returns ``\lambda^\star``
+    and ``v = 0``: by (B-NC), complementarity gives
+    ``c^\star = \Pi(c^\star + \lambda^\star/\rho)``, so ``\sigma = 0`` and
+    (B4) is the identity. If ``f`` and ``c`` are differentiable, also
+    ``\nabla_x \mathcal L_p(x^\star \mid \lambda^\star) = 0`` for (B2) and
+    (B3): for (B2), at a feasible ``x^\star`` the penalty gradient vanishes
+    and the multiplier term has gradient ``\nabla c^\top \lambda^\star``, so
+    the gradient is the KKT residual; for (B3) the gradient is
+    ``s\nabla f + \nabla c^\top(\lambda^\star + \rho\sigma) =
+    s\nabla f + \nabla c^\top \lambda^\star``.
+  - **Penalty schedule.** With ``\alpha > 1``, ``\rho`` never decreases and
+    never exceeds ``\max(\rho_0, \rho_{\max})``.
+  - **Multiplier signs.** Dual targets and completed multipliers have the sign
+    of their row's dual cone and satisfy ``\lvert\lambda\rvert \le M``,
+    because ``\Pi_M`` projects onto that set (and is idempotent).
+  - **Objective sense.** The losses of ``\max f`` and ``\min -f`` coincide.
+  - **Variable bounds.** With `bounds = SigmoidBoundMap()` or
+    `HardSigmoidBoundMap()` the predicted ``x`` satisfies its variable bounds
+    exactly, by construction, and the variable-bound rows carry zero
+    multipliers and zero dual targets, as in the paper.
+  - **Dual bound for strictly convex QPs.** For a convex QP with
+    ``Q \succ 0`` the Lagrangian is bounded below in ``x`` for every
+    multiplier, so by weak duality the completed multipliers give a valid
+    bound `L2OCore.dual_bound` ``\le`` OPT. This is a property of the problem
+    class, not of the method.
 
-*Proof sketches.* `KKTFixedPoint`: by (B-NC), complementarity gives
-``c^\star = \Pi(c^\star + \lambda^\star/\rho)``, so ``\sigma = 0`` and (B4) is
-the identity. `KKTStationarity`: for (B2), at a feasible ``x^\star`` the
-penalty gradient vanishes and the multiplier term has gradient
-``\nabla c^\top \lambda^\star``, so the gradient is the KKT residual; for (B3)
-the gradient is ``s\nabla f + \nabla c^\top(\lambda^\star + \rho\sigma) =
-s\nabla f + \nabla c^\top \lambda^\star``.
-
-**Not guaranteed.** The method does not certify feasibility of the predicted
-``x̂(p)`` (beyond variable bounds with a bound-enforcing map), optimality, or a
-valid dual bound (`L2OCore.ValidDualBound`) in general: the predicted
-multipliers satisfy sign conditions but not Lagrangian stationarity. The
-exception is `ValidDualBoundStrictlyConvex` above, which follows from weak
-duality alone; the method's `guarantees` do not list it because it depends on
-the problem, not on the method. Classical ALM convergence
+**What the method does not provide.** Feasibility of the predicted ``x̂(p)``
+(beyond variable bounds with a bound-enforcing map), optimality, and a valid
+dual bound in general are not ensured: the predicted multipliers satisfy sign
+conditions but not Lagrangian stationarity. Classical ALM convergence
 (Andreani et al., 2008, on which the penalty rule is modelled) concerns exact
 or approximate minimisation per instance; it does not transfer to stochastic
 training of a finite network on sampled instances, and the paper does not
 claim it does: it states that the iterates "are expected to converge to the
 primal and dual solutions on the training instances" (§4.4), and proves no
-theorem about PDL. L2OALM therefore reports `DualConeFeasible` (and
-`BoundFeasible` when applicable) and nothing more; measure feasibility and
-optimality gaps with `L2OCore.evaluate`.
+theorem about PDL. Measure feasibility and optimality gaps with
+`L2OCore.evaluate`.
 
 ## Deviations from the paper
 

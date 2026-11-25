@@ -24,9 +24,9 @@ julia --project=test_env test/runtests.jl
   - **Theory first.** A new method or loss term cites its paper; the docs
     Theory page states the optimization problem with the paper's equation
     numbers, and code comments point to them ("eq. (n)").
-  - **Name every claim.** A mathematical property the code relies on or
-    promises gets a named testset in `test/test_claims.jl` (and a row in the
-    Theory table) with its assumptions.
+  - **Test the mathematics.** A formula or property the code relies on gets
+    a numerical test (identities against the paper's equations, gradients
+    against finite differences, comparisons with a solver).
   - **Batch-first, array code.** The batch is the last dimension; losses use
     broadcasts and reductions so they differentiate and run on GPU arrays.
   - **Keep the core light.** ML frameworks, solvers and kernel backends are

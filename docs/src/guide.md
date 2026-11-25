@@ -74,7 +74,6 @@ For ExaModels problems and GPU evaluation also add
    P = L2OCore.sample_parameters(BoxSampler(fill(-1.0, 2), fill(1.0, 2)), rng, 100)
    pred = complete(pipe, P, L2OCore.predict_batch(trainer, P))
    evaluate(pipe, P, pred)                               # objective, violations
-   all(check(g, problem, P, pred).passed for g in guarantees(method))   # true
    ```
 
 `trainer.history` holds, per outer iteration, the penalty used, the violation
@@ -90,7 +89,6 @@ measure of eq. (8) and the mean losses of the last epoch of each phase.
 | schedule | [`violation_measure`](@ref), [`update_penalty`](@ref) | eqs. (8)–(9) |
 | outputs → predictions | [`map_primal`](@ref), [`project_multipliers`](@ref), `L2OCore.complete` | bound map, dual-cone projection |
 | training | [`ALMTrainer`](@ref), [`train!`](@ref) | Algorithm 1 (Lux extension) |
-| claims | `L2OCore.guarantees`, [`DualConeFeasible`](@ref) | checked by `L2OCore.check` |
 
 Every loss function has two forms: `f(method, form, ...)` (any evaluator,
 including ExaModels kernels without JuMP) and `f(pipe, ...)` (JuMP pipelines).
@@ -150,15 +148,14 @@ types stored in [`ALMTrainer`](@ref).
     `L2OALM.augmentation_term(::MyAug, form, C, Λ, ρ)` returning a `1 × B`
     row. Dual targets, schedule and training are reused.
   - **A new output map** (e.g. a layer that fixes a reference angle): subtype
-    [`AbstractBoundMap`](@ref), add [`map_primal`](@ref) and, if it makes a
-    promise, `L2OCore.guarantees(::ALMMethod{<:Real,<:AbstractAugmentation,MyMap})`
-    plus a guarantee type with `L2OCore.check`.
+    [`AbstractBoundMap`](@ref), add [`map_primal`](@ref) and, if the map keeps the
+    variables within their bounds, `L2OALM.enforces_bounds(::MyMap) = true`.
   - **A new evaluator** (another kernel backend): subtype
     `L2OCore.AbstractEvaluator`, implement `batch_objective` and
     `constraint_values` (differentiably) and build an
     [`ALMFormulation`](@ref) with the positional constructor.
   - **A new primal-dual method** (another PDL variant, Deep ALM): subtype
-    `L2OCore.AbstractPrimalDualMethod`, implement `supports`, `guarantees`,
+    `L2OCore.AbstractPrimalDualMethod`, implement `supports`,
     `decompose`, `complete`, and reuse the formulation and the loss functions
     as needed.
   - **Training for another framework**: add a method of [`train!`](@ref) for

@@ -87,16 +87,16 @@ evaluate(pipe, P, pred)            # objectives and violations per instance
     `dual_target`, `dual_loss`, `violation_measure`, `update_penalty`) that run
     on GPU arrays and differentiate with array AD.
   - The training loop of Algorithm 1 (`train!`, Lux extension).
-  - Honest guarantees, checked by `L2OCore.check`: multipliers with the
-    correct sign (`DualConeFeasible`), and variable bounds with
-    `SigmoidBoundMap` or `HardSigmoidBoundMap` (`BoundFeasible`). Feasibility and optimality of the
-    rest are measured, not promised.
+  - Multipliers projected onto the correct sign, and variable bounds
+    enforced by construction with `SigmoidBoundMap` or `HardSigmoidBoundMap`.
+    Feasibility of the other constraints and optimality are measured with
+    `evaluate` (violations, objective gaps).
 
 ## In the LearningToOptimize ecosystem
 
 L2OALM implements `L2OCore.AbstractPrimalDualMethod` from
 [LearningToOptimize.jl](https://github.com/LearningToOptimize/LearningToOptimize.jl)
-(problems, pipelines, evaluators, guarantee checks), evaluates ExaModels
+(problems, pipelines, evaluators), evaluates ExaModels
 problems with [BatchNLPKernels.jl](https://github.com/LearningToOptimize/BatchNLPKernels.jl),
 and sits next to [DecisionRules.jl](https://github.com/LearningToOptimize/DecisionRules.jl)
 and the other method packages of the organisation.

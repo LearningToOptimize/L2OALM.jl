@@ -83,7 +83,3 @@ gap = abs.(report.objective .- reference.objective) ./ max.(1, abs.(reference.ob
     mean_gap = sum(gap) / length(gap),
     mean_max_violation = sum(report.max_violation) / length(gap),
 )
-
-# The guarantees of the method hold by construction:
-
-[check(g, problem, P, pred) for g in guarantees(method)]

@@ -18,7 +18,7 @@ multiplier update. This is the PDL method of Park & Van Hentenryck,
 ([arXiv:2208.09046](https://arxiv.org/abs/2208.09046)).
 
 The package is an `L2OCore` primal-dual method, so it shares problems,
-pipelines, evaluators and guarantee checks with the other packages in the
+pipelines and evaluators with the other packages in the
 [LearningToOptimize](https://github.com/LearningToOptimize) ecosystem.
 
 ```mermaid
@@ -40,7 +40,7 @@ flowchart LR
 ## Where to start
 
   - [Theory](@ref): the optimization problem, the losses with the paper's
-    equation numbers, and what is and is not guaranteed.
+    equation numbers, and the properties of the method.
   - [Package guide](@ref): getting started with JuMP or ExaModels, the API
     concepts and the extension points.
   - [Design](@ref): how the package uses L2OCore, how GPU evaluation works,
@@ -54,11 +54,8 @@ flowchart LR
 ```jldoctest
 julia> method = ALMMethod(; ρ_init = 1.0, α = 2.0, τ = 0.8, ρmax = 1e3);
 
-julia> L2OCore.guarantees(method)
-(DualConeFeasible(),)
-
-julia> L2OCore.guarantees(ALMMethod(; bounds = SigmoidBoundMap()))
-(BoundFeasible(), DualConeFeasible())
+julia> enforces_bounds(SigmoidBoundMap())   # variable bounds hold by construction
+true
 
 julia> update_penalty(method, 1.0, 0.9, 1.0)   # v_k > τ v_{k-1}: ρ grows by α
 2.0
