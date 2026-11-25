@@ -11,7 +11,7 @@ L2OALM trains two neural proxies for a family of constrained optimization
 problems `min_x f(x; p) s.t. l ≤ c(x; p) ≤ u` indexed by parameters `p`: a
 **primal proxy** `x̂(p)` and a **dual proxy** `λ̂(p)`. No solver is needed to
 create training data. The proxies imitate the iterations of the augmented
-Lagrangian method: the primal proxy minimises the augmented Lagrangian for
+Lagrangian method: the primal proxy minimizes the augmented Lagrangian for
 the multipliers predicted by the dual proxy, and the dual proxy learns the
 multiplier update. This is the PDL method of Park & Van Hentenryck,
 *Self-Supervised Primal-Dual Learning for Constrained Optimization*, AAAI 2023

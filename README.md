@@ -1,14 +1,15 @@
 # L2OALM.jl
 
 [![CI](https://github.com/LearningToOptimize/L2OALM.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/LearningToOptimize/L2OALM.jl/actions/workflows/CI.yml?query=branch%3Amain)
-[![Coverage](https://codecov.io/gh/LearningToOptimize/L2OALM.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/LearningToOptimize/L2OALM.jl)
-[![Docs dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://LearningToOptimize.github.io/L2OALM.jl/dev/)
-[![Docs stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://LearningToOptimize.github.io/L2OALM.jl/stable/)
+[![Docs: dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://LearningToOptimize.github.io/L2OALM.jl/dev/)
+[![Codecov](https://codecov.io/gh/LearningToOptimize/L2OALM.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/LearningToOptimize/L2OALM.jl)
+[![Aqua QA](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
+[![JET](https://img.shields.io/badge/%F0%9F%9B%A9%EF%B8%8F_tested_with-JET.jl-233f9a)](https://github.com/aviatesk/JET.jl)
 
 **Self-supervised primal-dual learning with an augmented Lagrangian.**
 L2OALM learns a *primal proxy* `x̂(p)` and a *dual proxy* `λ̂(p)` for a family
 of constrained optimization problems `min f(x; p) s.t. l ≤ c(x; p) ≤ u`
-without solving any instance: the primal proxy minimises the augmented
+without solving any instance: the primal proxy minimizes the augmented
 Lagrangian for the multipliers predicted by the dual proxy, and the dual proxy
 learns the augmented-Lagrangian multiplier update, with the penalty increased
 whenever the violation stalls. This is PDL, Park & Van Hentenryck,
@@ -30,15 +31,23 @@ flowchart LR
 
 ## Installation
 
-`L2OCore` is not registered yet:
+L2OALM and its dependency `L2OCore` are not registered yet. `L2OCore` is the
+`lib/L2OCore` subpackage of LearningToOptimize.jl; the registered
+LearningToOptimize 1.0.0 predates it. Install `L2OCore` first, then L2OALM,
+on any Julia version from 1.10:
 
 ```julia
 using Pkg
 Pkg.add(url = "https://github.com/LearningToOptimize/LearningToOptimize.jl",
         subdir = "lib/L2OCore", rev = "ar/l2ocore-design")
 Pkg.add(url = "https://github.com/LearningToOptimize/L2OALM.jl")
-Pkg.add(["JuMP", "Lux", "Optimisers", "Zygote"])
 ```
+
+The example below also needs JuMP, Lux, Optimisers and Zygote:
+`Pkg.add(["JuMP", "Lux", "Optimisers", "Zygote"])`. The ExaModels path
+additionally needs ExaModels and
+[BatchNLPKernels.jl](https://github.com/LearningToOptimize/BatchNLPKernels.jl)
+(`Pkg.add(url = "https://github.com/LearningToOptimize/BatchNLPKernels.jl")`).
 
 ## Example
 
@@ -64,8 +73,8 @@ dual = Chain(Dense(2, 32, tanh), Dense(32, num_duals(problem); init_weight = zer
 (ps, st), (pd, sd) = Lux.setup(rng, primal), Lux.setup(rng, dual)
 trainer = ALMTrainer(Training.TrainState(primal, f64(ps), st, Adam(1e-2)),
                      Training.TrainState(dual, f64(pd), sd, Adam(1e-2)))
-train!(trainer, pipe, data; outer_iterations = 10, primal_epochs = 15, dual_epochs = 15,
-       batchsize = 64, rng)
+L2OALM.train!(trainer, pipe, data; outer_iterations = 10, primal_epochs = 15,
+              dual_epochs = 15, batchsize = 64, rng)
 
 P = L2OCore.sample_parameters(sampler, rng, 32)
 pred = complete(pipe, P, L2OCore.predict_batch(trainer, P))
@@ -79,27 +88,33 @@ evaluate(pipe, P, pred)            # objectives and violations per instance
     ExaModel with `parameter`s wrapped in a BatchNLPKernels `BatchModel`.
   - A sampler of parameters (e.g. `BoxSampler`) or a parameter matrix.
   - Two proxies: Lux models for the built-in training loop (any callable for
-    custom loops), the dual one with `num_rows` outputs.
+    custom loops), the dual one with `num_duals(problem)` outputs.
 
 ## What you get
 
   - Losses of the paper as plain array functions (`primal_loss`,
     `dual_target`, `dual_loss`, `violation_measure`, `update_penalty`) that run
     on GPU arrays and differentiate with array AD.
-  - The training loop of Algorithm 1 (`train!`, Lux extension).
+  - The training loop of Algorithm 1 (`L2OALM.train!`, Lux extension; not
+    exported, so it does not clash with `Flux.train!`).
   - Multipliers projected onto the correct sign, and variable bounds
     enforced by construction with `SigmoidBoundMap` or `HardSigmoidBoundMap`.
     Feasibility of the other constraints and optimality are measured with
     `evaluate` (violations, objective gaps).
 
-## In the LearningToOptimize ecosystem
+## The LearningToOptimize ecosystem
 
-L2OALM implements `L2OCore.AbstractPrimalDualMethod` from
-[LearningToOptimize.jl](https://github.com/LearningToOptimize/LearningToOptimize.jl)
-(problems, pipelines, evaluators), evaluates ExaModels
-problems with [BatchNLPKernels.jl](https://github.com/LearningToOptimize/BatchNLPKernels.jl),
-and sits next to [DecisionRules.jl](https://github.com/LearningToOptimize/DecisionRules.jl)
-and the other method packages of the organisation.
+| Package | What it provides |
+|:--|:--|
+| [LearningToOptimize.jl](https://github.com/LearningToOptimize/LearningToOptimize.jl) | the penalty method, Flux training and solver-labeled dataset generation; hosts the two subpackages below |
+| ↳ [L2OCore](https://github.com/LearningToOptimize/LearningToOptimize.jl/tree/main/lib/L2OCore) | the shared interface: method families, problem wrapper, batched evaluators, datasets |
+| ↳ [L2OSobolev](https://github.com/LearningToOptimize/LearningToOptimize.jl/tree/main/lib/L2OSobolev) | derivative (Sobolev) supervision added to any method |
+| [L2ODLL.jl](https://github.com/LearningToOptimize/L2ODLL.jl) | Dual Lagrangian Learning: dual proxies that give valid dual bounds for conic problems |
+| [L2ODC3.jl](https://github.com/LearningToOptimize/L2ODC3.jl) | DC3: equality completion and inequality correction for primal proxies |
+| [L2OALM.jl](https://github.com/LearningToOptimize/L2OALM.jl) | primal-dual learning with an augmented Lagrangian |
+
+L2OALM implements `L2OCore.AbstractPrimalDualMethod` and evaluates ExaModels
+problems with [BatchNLPKernels.jl](https://github.com/LearningToOptimize/BatchNLPKernels.jl).
 
 ## Citation
 

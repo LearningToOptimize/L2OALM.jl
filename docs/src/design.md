@@ -18,7 +18,7 @@ flowchart TB
         M["ALMMethod <: AbstractPrimalDualMethod"]
         F["ALMFormulation = evaluator + row bounds"]
         L["losses (5)-(9), map_primal, project_multipliers"]
-        T["ALMTrainer, train!"]
+        T["ALMTrainer, L2OALM.train!"]
     end
     subgraph ext["package extensions (weak deps)"]
         LUX["L2OALMLuxExt: Algorithm 1 for Lux TrainStates"]
@@ -88,7 +88,7 @@ gradients appear inside a loss, so no nested AD is required.
 |:--|:--|:--|
 | Lux + Zygote | supported, tested | `test/test_lux.jl`, `test/test_batchnlp.jl` |
 | any callable + Zygote | supported | losses are plain array functions; gradients checked against finite differences in the test suite |
-| Flux, Enzyme, other backends | expected to work, not tested | add a `train!` method for their state types; `ad` keyword of the Lux loop accepts any ADTypes backend that Lux supports |
+| Flux, Enzyme, other backends | expected to work, not tested | add an `L2OALM.train!` method for their state types; `ad` keyword of the Lux loop accepts any ADTypes backend that Lux supports |
 
 Derivative (Sobolev) supervision, which needs input gradients inside the
 loss and hence nested AD, is a method-agnostic wrapper in L2OCore
@@ -107,7 +107,7 @@ The interface is meant to host several primal-dual learning variants:
     reference-bus angle), separate equality scaling of `ρ`, a warm-up phase
     at `ρmax`, and a mean-based violation measure fit as an
     [`AbstractBoundMap`](@ref), an [`AbstractAugmentation`](@ref) and keywords
-    of [`train!`](@ref) respectively.
+    of [`L2OALM.train!`](@ref) respectively.
   - **Deep ALM** (Kotary & Fioretto, 2024): a dual-only network with a
     per-instance inner solve; a separate `AbstractPrimalDualMethod` reusing
     `ALMFormulation` and `dual_target`.

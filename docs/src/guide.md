@@ -6,7 +6,10 @@ CurrentModule = L2OALM
 
 ## Installation
 
-L2OALM depends on `L2OCore`, which is not registered yet:
+L2OALM and its dependency `L2OCore` are not registered yet. `L2OCore` is the
+`lib/L2OCore` subpackage of LearningToOptimize.jl; the registered
+LearningToOptimize 1.0.0 predates it. Install `L2OCore` first, then L2OALM,
+on any Julia version from 1.10:
 
 ```julia
 using Pkg
@@ -52,7 +55,9 @@ For ExaModels problems and GPU evaluation also add
    ```
 
 4. **Create the proxies and train** (Lux extension). The dual proxy outputs
-   one multiplier per row (`num_duals(problem)`); start its last layer at zero:
+   one multiplier per row (`num_duals(problem)`); start its last layer at zero.
+   `train!` is not exported (the name would clash with `Flux.train!`); call it
+   as `L2OALM.train!` or through `L2OCore.train_proxy!(method, pipe, trainer, data)`:
 
    ```julia
    using Lux, Optimisers, Zygote, Random
@@ -62,8 +67,8 @@ For ExaModels problems and GPU evaluation also add
    ps, st = Lux.setup(rng, primal); pd, sd = Lux.setup(rng, dual)
    trainer = ALMTrainer(Training.TrainState(primal, f64(ps), st, Adam(1e-3)),
                         Training.TrainState(dual, f64(pd), sd, Adam(1e-3)); ρ = method.ρ_init)
-   train!(trainer, pipe, data; outer_iterations = 20, primal_epochs = 10, dual_epochs = 10,
-          batchsize = 64, rng = rng)
+   L2OALM.train!(trainer, pipe, data; outer_iterations = 20, primal_epochs = 10,
+                 dual_epochs = 10, batchsize = 64, rng = rng)
    ```
 
 5. **Predict, complete and evaluate.** `predict_batch` stacks both proxies;
@@ -88,7 +93,7 @@ measure of eq. (8) and the mean losses of the last epoch of each phase.
 | losses | [`primal_loss`](@ref), [`dual_target`](@ref), [`dual_loss`](@ref) | eqs. (5)–(7); plain array functions, any AD |
 | schedule | [`violation_measure`](@ref), [`update_penalty`](@ref) | eqs. (8)–(9) |
 | outputs → predictions | [`map_primal`](@ref), [`project_multipliers`](@ref), `L2OCore.complete` | bound map, dual-cone projection |
-| training | [`ALMTrainer`](@ref), [`train!`](@ref) | Algorithm 1 (Lux extension) |
+| training | [`ALMTrainer`](@ref), [`L2OALM.train!`](@ref) | Algorithm 1 (Lux extension) |
 
 Every loss function has two forms: `f(method, form, ...)` (any evaluator,
 including ExaModels kernels without JuMP) and `f(pipe, ...)` (JuMP pipelines).
@@ -109,7 +114,7 @@ core = ExaCore(; backend = CPU())          # CUDABackend() on a GPU
 # ... variable, parameter, constraint, objective ...
 bm = BatchModel(ExaModel(core; prod = true), batchsize; config = BatchModelConfig(:viol_grad))
 form = ALMFormulation(bm)
-train!(trainer, method, form, P; batchsize = batchsize)   # batchsize ≤ bm.batch_size
+L2OALM.train!(trainer, method, form, P; batchsize = batchsize)   # batchsize ≤ bm.batch_size
 ```
 
 On a GPU, build the ExaModel on `CUDABackend()`, move the parameters and the
@@ -138,7 +143,7 @@ for step in 1:100
 end
 ```
 
-[`train!`](@ref) methods for other frameworks are added by dispatching on the
+[`L2OALM.train!`](@ref) methods for other frameworks are added by dispatching on the
 types stored in [`ALMTrainer`](@ref).
 
 ## Extension points
@@ -158,5 +163,5 @@ types stored in [`ALMTrainer`](@ref).
     `L2OCore.AbstractPrimalDualMethod`, implement `supports`,
     `decompose`, `complete`, and reuse the formulation and the loss functions
     as needed.
-  - **Training for another framework**: add a method of [`train!`](@ref) for
+  - **Training for another framework**: add a method of [`L2OALM.train!`](@ref) for
     `ALMTrainer{<:YourState,<:YourState}`.

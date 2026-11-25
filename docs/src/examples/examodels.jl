@@ -36,7 +36,7 @@ bm = BatchModel(
     ExaModel(core; prod = true),
     batchsize;
     config = BatchModelConfig(:viol_grad),
-)
+);
 
 # The formulation: rows are the two constraints followed by the three
 # variables (bound rows).
@@ -72,7 +72,7 @@ trainer = ALMTrainer(
     Training.TrainState(dual, f64(pd), sd, Optimisers.Adam(1e-2)),
 )
 Ptrain = rand(rng, 2, 128)
-train!(
+L2OALM.train!(
     trainer,
     method,
     form,

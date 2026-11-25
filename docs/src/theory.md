@@ -11,7 +11,7 @@ properties of the method with the hypotheses they need. Equation numbers `(n)` r
 > S. Park and P. Van Hentenryck. *Self-Supervised Primal-Dual Learning for
 > Constrained Optimization.* AAAI 2023. [arXiv:2208.09046](https://arxiv.org/abs/2208.09046).
 
-Equations labelled `(B·)` are the row-wise box form used by the code; each is
+Equations labeled `(B·)` are the row-wise box form used by the code; each is
 shown to reduce to the paper's equation.
 
 ## Notation
@@ -47,7 +47,7 @@ variable bounds included, as a **box row**
 ```
 
 where ``l_i, u_i \in \mathbb R \cup \{\pm\infty\}`` and ``s = +1`` for
-minimisation, ``s = -1`` for maximisation (so the method always minimises
+minimization, ``s = -1`` for maximization (so the method always minimizes
 ``s f``). An inequality ``g \le 0`` is a row with ``c = g``, ``u = 0``,
 ``l = -\infty``; an equality ``h = b`` is a row with ``l = u = b``. For a JuMP
 problem the rows are `L2OCore.dual_layout(problem)` (see
@@ -86,14 +86,14 @@ c = \Pi_{[l,u]}\big(c + \lambda/\rho\big).
 
 For a row ``g \le 0`` the paper's ``\mu`` is ``\lambda``; for a row
 ``c \ge l`` it is ``-\lambda``. `JuMP.dual` returns ``-\lambda`` for both
-minimisation and maximisation ([`to_jump_duals`](@ref)); this is checked
+minimization and maximization ([`to_jump_duals`](@ref)); this is checked
 against Ipopt in the tests.
 
 ## The losses
 
 ### Primal loss — eq. (5)
 
-With the dual proxy frozen, the primal proxy minimises (eq. (5))
+With the dual proxy frozen, the primal proxy minimizes (eq. (5))
 
 ```math
 \mathcal L_p(\mathbf y \mid \boldsymbol\mu, \boldsymbol\lambda)
@@ -116,7 +116,7 @@ equality it is ``\lambda h`` and ``v = |h|`` — exactly eq. (5). The paper writ
 losses "generalize naturally to mini-batches" (footnote 1); L2OALM averages
 over the batch. With ``\lambda = 0`` it is the penalty loss of eq. (4) with all
 per-constraint coefficients ``\rho_{g,j} = \rho_{h,j} = \rho/2``, which is the
-paper's remark that the zero-initialised dual network makes (5) identical to
+paper's remark that the zero-initialized dual network makes (5) identical to
 (4).
 
 The alternative [`PHRAugmentation`](@ref) is the classical
@@ -199,7 +199,7 @@ Andreani et al., 2008, from which the rule is taken). Then
 
 ### Algorithm 1
 
-[`train!`](@ref) runs, for ``k = 1, \dots, K``: (i) the primal phase on (B2)
+[`L2OALM.train!`](@ref) runs, for ``k = 1, \dots, K``: (i) the primal phase on (B2)
 or (B3) with the dual proxy frozen; (ii) ``v_k`` by (8); (iii) a frozen copy
 ``\lambda_k`` of the dual proxy; (iv) the dual phase on (B5) towards (B4);
 (v) the penalty rule (B7). This is the order of Algorithm 1, lines 2–10:
@@ -254,8 +254,8 @@ The following facts follow directly from the formulas above.
 (beyond variable bounds with a bound-enforcing map), optimality, and a valid
 dual bound in general are not ensured: the predicted multipliers satisfy sign
 conditions but not Lagrangian stationarity. Classical ALM convergence
-(Andreani et al., 2008, on which the penalty rule is modelled) concerns exact
-or approximate minimisation per instance; it does not transfer to stochastic
+(Andreani et al., 2008, on which the penalty rule is modeled) concerns exact
+or approximate minimization per instance; it does not transfer to stochastic
 training of a finite network on sampled instances, and the paper does not
 claim it does: it states that the iterates "are expected to converge to the
 primal and dual solutions on the training instances" (§4.4), and proves no
@@ -277,8 +277,8 @@ theorem about PDL. Measure feasibility and optimality gaps with
     the paper always enforces ``\mathbf Y`` by the architecture (see above).
     Use a bound-enforcing map to match it.
   - **Learning-rate decay** of App. C.3 (×0.99 when the validation loss
-    exceeds its best value) is not built into [`train!`](@ref); the `callback`
-    keyword can adjust the optimiser between outer iterations.
+    exceeds its best value) is not built into [`L2OALM.train!`](@ref); the `callback`
+    keyword can adjust the optimizer between outer iterations.
   - **Norm in (7)**: Euclidean (the paper allows any norm).
   - **Eq. (8)**: ``\lambda_{k,j}`` for ``j \in \mathcal G`` read as
     ``\mu_{k,j}`` (see above).
@@ -291,7 +291,7 @@ theorem about PDL. Measure feasibility and optimality gaps with
     recovered per instance by a box-constrained solve of the augmented
     Lagrangian, and ``\rho`` grows geometrically per epoch. It would be another
     `AbstractPrimalDualMethod` on the same interface (it needs a per-instance
-    inner solver, so it does not reuse [`train!`](@ref)).
+    inner solver, so it does not reuse [`L2OALM.train!`](@ref)).
   - "Analytical dual" PDL for AC-OPF: use ``\mathrm{clip}(\lambdâ + \rho\,\sigma)``
     inside the primal loss. Its gradient is the one of (B3), so it is available
     as `augmentation = PHRAugmentation()`; see [Design](@ref).

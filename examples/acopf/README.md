@@ -1,4 +1,7 @@
-# AC-OPF with PDL
+# AC-OPF with PDL (smoke example)
+
+This is a smoke example: it runs the whole pipeline on AC-OPF but is not a
+benchmark and does not reproduce the AC-OPF results of the paper.
 
 `train.jl` trains PDL proxies for a parametric AC optimal power flow (load
 multipliers at every bus as parameters) built in ExaModels by `power.jl`, and
@@ -14,7 +17,7 @@ For an NVIDIA GPU, `]add CUDA LuxCUDA` in this environment and run with
 construction) and `PHRAugmentation`.
 
 The hyper-parameters are not tuned: with the defaults above a few outer
-iterations exercise the full pipeline (kernels, losses, Algorithm 1) but do
-not yet reach small violations. AC-OPF needs many more inner steps per phase
+iterations exercise the full pipeline (kernels, losses, Algorithm 1), and the
+constraint violations stay large. Reaching the accuracy of the paper needs many more inner steps per phase
 (thousands rather than hundreds), a warm-up at a larger `ρ`, and problem-
 specific output layers; see the design page of the documentation.

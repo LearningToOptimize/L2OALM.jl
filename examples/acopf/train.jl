@@ -58,7 +58,7 @@ trainer = ALMTrainer(
 
 log_iteration(trainer, entry) = @info "outer iteration" entry
 
-train!(
+L2OALM.train!(
     trainer,
     method,
     form,
