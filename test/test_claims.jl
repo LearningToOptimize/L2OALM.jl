@@ -221,6 +221,12 @@ end
     for _ = 1:5
         out = 5 .* randn(rng, output_dimension(pipe), size(P_TEST, 2))
         pred = complete(pipe, P_TEST, out)
-        @test check(ValidDualBound(), pipe.problem, P_TEST, pred; reference = ref.objective).passed
+        @test check(
+            ValidDualBound(),
+            pipe.problem,
+            P_TEST,
+            pred;
+            reference = ref.objective,
+        ).passed
     end
 end
