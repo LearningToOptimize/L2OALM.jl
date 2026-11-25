@@ -27,3 +27,4 @@ Manifest*.toml
 LocalPreferences.toml
 JuliaLocalPreferences.toml
 docs/src/examples/*.md
+test_env/

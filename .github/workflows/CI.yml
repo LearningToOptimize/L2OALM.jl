@@ -39,23 +39,13 @@ jobs:
           version: ${{ matrix.version }}
           arch: ${{ matrix.arch }}
       - uses: julia-actions/cache@v2
-      # L2OCore and BatchNLPKernels are not registered yet. Julia >= 1.11 reads
-      # the [sources] sections of Project.toml and test/Project.toml; Julia 1.10
-      # ignores them, so add both by URL explicitly (harmless on >= 1.11).
+      # L2OCore and BatchNLPKernels are not registered yet and Julia 1.10 ignores
+      # [sources]; the script builds the test environment from test/Project.toml
+      # and adds them by URL (and this package by path).
       - name: Set up the test environment
-        shell: julia --color=yes --project=test {0}
-        run: |
-          using Pkg
-          Pkg.add([
-              PackageSpec(url = "https://github.com/LearningToOptimize/LearningToOptimize.jl",
-                          subdir = "lib/L2OCore", rev = "ar/l2ocore-design"),
-              PackageSpec(url = "https://github.com/LearningToOptimize/BatchNLPKernels.jl",
-                          rev = "main"),
-          ])
-          Pkg.develop(path = ".")
-          Pkg.instantiate()
+        run: julia --color=yes .github/ci/setup_test_env.jl test_env
       - name: Run tests
-        run: julia --color=yes --project=test --code-coverage=user --check-bounds=yes test/runtests.jl
+        run: julia --color=yes --project=test_env --code-coverage=user --check-bounds=yes test/runtests.jl
       - uses: julia-actions/julia-processcoverage@v1
         with:
           directories: src,ext

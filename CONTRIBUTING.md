@@ -12,7 +12,12 @@ JULIA_NUM_THREADS=2 julia --project=test test/runtests.jl
 julia --project=docs docs/make.jl                         # documentation
 ```
 
-On Julia 1.10, add the unregistered dependencies first (see `.github/workflows/CI.yml`).
+On Julia 1.10, which ignores `[sources]`, build the environment as CI does:
+
+```sh
+julia .github/ci/setup_test_env.jl test_env
+julia --project=test_env test/runtests.jl
+```
 
 ## Guidelines
 
