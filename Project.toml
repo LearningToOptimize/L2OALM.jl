@@ -1,6 +1,6 @@
 name = "L2OALM"
 uuid = "f31bfc7b-7b5d-4cc3-b76b-1af281ce159d"
-authors = ["LearningToOptimize.jl contributors"]
+authors = ["Andrew <arosemberg3@gatech.edu> and contributors"]
 version = "0.1.0-DEV"
 
 [deps]

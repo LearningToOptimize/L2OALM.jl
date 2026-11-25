@@ -21,7 +21,7 @@ makedocs(;
         Base.get_extension(L2OALM, :L2OALMLuxExt),
         Base.get_extension(L2OALM, :L2OALMBatchNLPKernelsExt),
     ],
-    authors = "LearningToOptimize.jl contributors",
+    authors = "Andrew <arosemberg3@gatech.edu> and contributors",
     sitename = "L2OALM.jl",
     doctest = true,
     checkdocs = :exports,
