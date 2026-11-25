@@ -104,7 +104,7 @@ end
 function create_parametric_ac_power_model(
     filename::String = "pglib_opf_case14_ieee.m";
     prod::Bool = true,
-    backend = OpenCLBackend(),
+    backend = KernelAbstractions.CPU(),
     T = Float64,
     kwargs...,
 )
