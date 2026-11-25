@@ -5,6 +5,7 @@
     @test form.lower == [0, -Inf, -1, -2, -2, -2]
     @test form.upper == [0, 0, Inf, 2, 2, 2]
     @test form.equality == [1, 0, 0, 0, 0, 0]
+    @test form.bound == [0, 0, 0, 1, 1, 1]
     @test occursin("BatchModelEvaluator", sprint(show, form.evaluator))
     ev = form.evaluator
     @test L2OCore.equality_rows(ev) == Bool[1, 0, 0, 0, 0, 0]

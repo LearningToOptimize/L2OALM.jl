@@ -1,5 +1,5 @@
 """
-    ALMFormulation(evaluator, lower, upper, xlower, xupper, equality; sense = 1)
+    ALMFormulation(evaluator, lower, upper, xlower, xupper, equality; sense = 1, bound = 0)
     ALMFormulation(pipe::L2OPipeline)
 
 The problem as the augmented Lagrangian method sees it:
@@ -12,7 +12,11 @@ where `c(x; p) = L2OCore.constraint_values(evaluator, X, P)` stacks every
 constraint row (variable bounds included), `l = lower` and `u = upper` may
 contain `±Inf`, and `s = sense` is `+1` for minimisation and `-1` for
 maximisation. `xlower`/`xupper` are the variable bounds (used by bound maps),
-`equality` is `1` on rows with `l == u` and `0` elsewhere.
+`equality` is `1` on rows with `l == u` and `0` elsewhere, and `bound` is `1`
+on rows that are variable bounds (`c_i(x) = x_j`) and `0` elsewhere (default:
+no bound rows). Bound rows get no multiplier when the bound map enforces the
+bounds (see [`enforces_bounds`](@ref)), as in the paper, where the variable
+domain `Y` is handled by the network architecture.
 
 All vectors share one array type so that the formulation lives on the same
 device as the evaluator: CPU `Vector`s for JuMP problems, device vectors for an
@@ -45,6 +49,7 @@ struct ALMFormulation{E<:AbstractEvaluator,V<:AbstractVector{<:Real},T<:Real}
     xlower::V
     xupper::V
     equality::V
+    bound::V
     sense::T
     function ALMFormulation(
         evaluator::E,
@@ -54,15 +59,27 @@ struct ALMFormulation{E<:AbstractEvaluator,V<:AbstractVector{<:Real},T<:Real}
         xupper::V,
         equality::V;
         sense::Real = 1,
+        bound::Union{Nothing,V} = nothing,
     ) where {E<:AbstractEvaluator,V<:AbstractVector{<:Real}}
         m = length(lower)
-        (length(upper) == m && length(equality) == m) ||
-            throw(DimensionMismatch("lower, upper and equality must have the same length"))
+        bound = bound === nothing ? fill!(similar(lower), 0) : bound
+        (length(upper) == m && length(equality) == m && length(bound) == m) || throw(
+            DimensionMismatch("lower, upper, equality and bound must have the same length"),
+        )
         length(xlower) == length(xupper) ||
             throw(DimensionMismatch("xlower and xupper must have the same length"))
         sense in (1, -1) || throw(ArgumentError("sense must be +1 (min) or -1 (max)"))
         T = eltype(V)
-        return new{E,V,T}(evaluator, lower, upper, xlower, xupper, equality, T(sense))
+        return new{E,V,T}(
+            evaluator,
+            lower,
+            upper,
+            xlower,
+            xupper,
+            equality,
+            bound,
+            T(sense),
+        )
     end
 end
 
@@ -132,6 +149,7 @@ struct ALMDecomposition{T<:Real} <: L2OCore.AbstractDecomposition
     xlower::Vector{T}
     xupper::Vector{T}
     equality::Vector{T}
+    bound::Vector{T}
     sense::T
 end
 
@@ -141,11 +159,16 @@ function ALMDecomposition(problem::ParametricProblem; T::Type{<:Real} = Float64)
     m = L2OCore.num_duals(problem)
     lower = fill(T(-Inf), m)
     upper = fill(T(Inf), m)
+    bound = zeros(T, m)
     for (c, rows) in zip(L2OCore.constraint_refs(problem), L2OCore.dual_layout(problem))
-        set = JuMP.moi_set(JuMP.constraint_object(c))
-        l, u = _box(set)
+        obj = JuMP.constraint_object(c)
+        l, u = _box(JuMP.moi_set(obj))
         lower[rows] .= l
         upper[rows] .= u
+        isbound =
+            obj.func isa JuMP.AbstractVariableRef ||
+            obj.func isa AbstractVector{<:JuMP.AbstractVariableRef}
+        bound[rows] .= isbound
     end
     vars = L2OCore.decision_variables(problem)
     boxes = map(_variable_box, vars)
@@ -161,6 +184,7 @@ function ALMDecomposition(problem::ParametricProblem; T::Type{<:Real} = Float64)
         xlower,
         xupper,
         equality,
+        bound,
         sense,
     )
 end
@@ -181,6 +205,7 @@ function ALMFormulation(pipe::L2OPipeline)
         d.xupper,
         d.equality;
         sense = d.sense,
+        bound = d.bound,
     )
 end
 

@@ -230,3 +230,65 @@ end
         ).passed
     end
 end
+
+# ---------------------------------------------------------------------------
+# Claims added by the theory audit against the paper's full text.
+
+@testset "BoundRowsNotDualized: Y is handled by the bound map, as in the paper" begin
+    # Paper, Sec. 3.2/4 and App. C.2: only g and h get multipliers; the
+    # domain Y is enforced by the output layer. With a bound-enforcing map the
+    # variable-bound rows get zero multipliers and zero dual targets.
+    rng = Random.Xoshiro(16)
+    for bounds in (SigmoidBoundMap(), HardSigmoidBoundMap())
+        pipe = qp_pipe(; bounds = bounds)
+        form = ALMFormulation(pipe)
+        @test form.bound == [0, 0, 0, 1, 1, 1, 1, 1, 1]
+        @test enforces_bounds(bounds)
+        Λ = project_multipliers(pipe.method, form, 10 .* randn(rng, 9, 4))
+        @test all(iszero, Λ[4:9, :]) && any(!iszero, Λ[1:3, :])
+        X = map_primal(pipe.method, form, 5 .* randn(rng, 3, 4))
+        T = dual_target(pipe.method, form, P_TEST, X, 10 .* randn(rng, 9, 4); ρ = 3.0)
+        @test all(iszero, T[4:9, :])
+        pred = complete(pipe, P_TEST, 5 .* randn(rng, 12, 4))
+        @test all(iszero, pred.dual[4:9, :])
+        for g in guarantees(pipe.method)
+            @test check(g, pipe.problem, P_TEST, pred).passed
+        end
+    end
+    # Without a bound map the bounds are ordinary rows with multipliers.
+    @test !enforces_bounds(NoBoundMap())
+    pipe = qp_pipe()
+    Λ = project_multipliers(pipe.method, ALMFormulation(pipe), ones(9, 1))
+    @test Λ[7:9, 1] == ones(3)
+end
+
+@testset "PHRMatchesPDLOnEqualityAndViolatedRows" begin
+    # The two augmentations coincide on equality rows and on violated
+    # inequality rows (docs, Theory: "(B2) vs (B3)").
+    pipe = qp_pipe()
+    form = ALMFormulation(pipe)
+    P = P_TEST[:, 1:1]
+    X = [3.0; 3.0; 3.0;;]                  # x > 2: all upper bounds violated
+    Λ = zeros(9, 1)
+    Λ[1] = 0.7                              # equality row
+    Λ[7:9] .= [0.2, 0.5, 1.0]               # violated upper-bound rows
+    C = L2OCore.constraint_values(form.evaluator, X, P)
+    @test augmentation_term(PDLAugmentation(), form, C, Λ, 4.0) ≈
+          augmentation_term(PHRAugmentation(), form, C, Λ, 4.0)
+    # and differ on a strictly satisfied inequality with a positive multiplier
+    X2 = [0.0; 0.0; 0.0;;]
+    C2 = L2OCore.constraint_values(form.evaluator, X2, P)
+    @test !(
+        augmentation_term(PDLAugmentation(), form, C2, Λ, 4.0) ≈
+        augmentation_term(PHRAugmentation(), form, C2, Λ, 4.0)
+    )
+end
+
+@testset "HardSigmoidBoundMap is the paper's convex combination" begin
+    pipe = qp_pipe(; bounds = HardSigmoidBoundMap())
+    form = ALMFormulation(pipe)
+    Z = [-10.0 -3.0 0.0 1.5 3.0 10.0]
+    X = map_primal(pipe.method, form, repeat(Z, 3, 1))
+    @test X[1, :] ≈ -2 .+ 4 .* clamp.(vec(Z) ./ 6 .+ 0.5, 0, 1)
+    @test all(-2 .<= X .<= 2)
+end

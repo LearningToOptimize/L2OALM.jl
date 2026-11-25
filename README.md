@@ -89,7 +89,7 @@ evaluate(pipe, P, pred)            # objectives and violations per instance
   - The training loop of Algorithm 1 (`train!`, Lux extension).
   - Honest guarantees, checked by `L2OCore.check`: multipliers with the
     correct sign (`DualConeFeasible`), and variable bounds with
-    `SigmoidBoundMap` (`BoundFeasible`). Feasibility and optimality of the
+    `SigmoidBoundMap` or `HardSigmoidBoundMap` (`BoundFeasible`). Feasibility and optimality of the
     rest are measured, not promised.
 
 ## In the LearningToOptimize ecosystem

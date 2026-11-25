@@ -78,6 +78,7 @@ function L2OALM.ALMFormulation(bm::BatchModel)
         copy(meta.uvar),
         T.(lower .== upper);
         sense = meta.minimize ? 1 : -1,
+        bound = vcat(fill!(similar(meta.lcon), 0), fill!(similar(meta.lvar), 1)),
     )
 end
 

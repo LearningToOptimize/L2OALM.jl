@@ -103,7 +103,7 @@ The interface is meant to host several primal-dual learning variants:
     ``\mathrm{clip}(\hat\lambda(p) + \rho\,\sigma(\hat x))`` as the multiplier
     inside the primal loss gives the gradient of the PHR augmented Lagrangian,
     i.e. `ALMMethod(; augmentation = PHRAugmentation())`. A bounded output
-    layer is `SigmoidBoundMap()`. Problem-specific layers (fixing the
+    layer is `SigmoidBoundMap()` (or the paper's `HardSigmoidBoundMap()`). Problem-specific layers (fixing the
     reference-bus angle), separate equality scaling of `ρ`, a warm-up phase
     at `ρmax`, and a mean-based violation measure fit as an
     [`AbstractBoundMap`](@ref), an [`AbstractAugmentation`](@ref) and keywords

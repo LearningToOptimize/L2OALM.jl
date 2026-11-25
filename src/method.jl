@@ -53,7 +53,8 @@ struct PHRAugmentation <: AbstractAugmentation end
 
 Map applied to the raw primal output of the proxy before evaluation
 ([`map_primal`](@ref)). Built-in: [`NoBoundMap`](@ref) (identity) and
-[`SigmoidBoundMap`](@ref) (variable bounds hold by construction).
+[`SigmoidBoundMap`](@ref) / [`HardSigmoidBoundMap`](@ref) (variable bounds hold
+by construction; see [`enforces_bounds`](@ref)).
 
 **Extension point.** Subtype it, add a method of [`map_primal`](@ref) and, if
 the map makes a promise, of `L2OCore.guarantees` for
@@ -69,6 +70,17 @@ Identity: the primal block of the proxy output is the prediction.
 struct NoBoundMap <: AbstractBoundMap end
 
 """
+    enforces_bounds(bounds::AbstractBoundMap) -> Bool
+
+Whether [`map_primal`](@ref) with `bounds` always returns points inside the
+variable bounds. When it does, the variable-bound rows of the formulation get
+no multiplier ([`project_multipliers`](@ref) sets them to zero): as in the
+paper, the variable domain `Y` is then handled by the architecture and only
+`g` and `h` are dualized. Fallback: `false`.
+"""
+enforces_bounds(::AbstractBoundMap) = false
+
+"""
     SigmoidBoundMap()
 
 Maps each raw output `z` into its variable's bounds:
@@ -79,6 +91,20 @@ rounding. Guarantee: `BoundFeasible` (variable bounds hold exactly). Unlike a
 `clamp`, the map has a non-zero gradient everywhere.
 """
 struct SigmoidBoundMap <: AbstractBoundMap end
+enforces_bounds(::SigmoidBoundMap) = true
+
+"""
+    HardSigmoidBoundMap()
+
+The output layer of the paper's AC-OPF experiments (Appendix C.2): for a
+variable with two finite bounds, the convex combination
+`l + (u - l) hardσ(z)` with `hardσ(z) = clamp(z/6 + 1/2, 0, 1)`. Variables with
+at most one finite bound are mapped as in [`SigmoidBoundMap`](@ref). Guarantee:
+`BoundFeasible`. The gradient is zero where `hardσ` saturates (`|z| ≥ 3`), which
+is why [`SigmoidBoundMap`](@ref) is the default bound-enforcing map.
+"""
+struct HardSigmoidBoundMap <: AbstractBoundMap end
+enforces_bounds(::HardSigmoidBoundMap) = true
 
 """
     ALMMethod(; ρ_init = 1.0, ρmax = 1e4, α = 10.0, τ = 0.8, max_dual = 1e6,
@@ -105,7 +131,9 @@ Hyper-parameters (paper notation):
     safeguard that is not in the paper);
   - `augmentation`: [`PDLAugmentation`](@ref) (paper) or
     [`PHRAugmentation`](@ref);
-  - `bounds`: [`NoBoundMap`](@ref) or [`SigmoidBoundMap`](@ref);
+  - `bounds`: [`NoBoundMap`](@ref) (variable bounds are rows with multipliers),
+    [`SigmoidBoundMap`](@ref) or [`HardSigmoidBoundMap`](@ref) (bounds enforced
+    by the output map and not dualized, as in the paper);
   - `dual_norm_eps`: smoothing of the norms of eq. (7) so the loss is
     differentiable when the prediction equals the target.
 
@@ -117,7 +145,7 @@ nonlinear problems).
 
 Guarantees (see `L2OCore.guarantees`): the completed multipliers always have
 the sign of the dual cone of their row ([`DualConeFeasible`](@ref)); with
-`bounds = SigmoidBoundMap()` the variable bounds hold (`BoundFeasible`). The
+a bound-enforcing map the variable bounds hold (`BoundFeasible`). The
 method makes **no** feasibility or optimality promise for the remaining
 constraints: PDL drives violations down during training but certifies nothing
 on unseen instances.
@@ -180,8 +208,9 @@ L2OCore.supports(::ALMMethod, ::L2OCore.ConvexQuadratic) = true
 L2OCore.supports(::ALMMethod, ::L2OCore.SmoothNonlinear) = true
 
 L2OCore.guarantees(::ALMMethod) = (DualConeFeasible(),)
-L2OCore.guarantees(::ALMMethod{<:Real,<:AbstractAugmentation,SigmoidBoundMap}) =
-    (BoundFeasible(), DualConeFeasible())
+L2OCore.guarantees(
+    ::ALMMethod{<:Real,<:AbstractAugmentation,<:Union{SigmoidBoundMap,HardSigmoidBoundMap}},
+) = (BoundFeasible(), DualConeFeasible())
 
 L2OCore.decompose(problem::ParametricProblem, ::ALMMethod) = ALMDecomposition(problem)
 
@@ -205,6 +234,15 @@ function _bounded(z, l, u)
     return clamp(y, l, u)
 end
 
+_hardsigmoid(z) = clamp(z / 6 + one(z) / 2, zero(z), one(z))
+
+function _hardbounded(z, l, u)
+    hl, hu = isfinite(l), isfinite(u)
+    lf, uf = _finite_or_zero(l), _finite_or_zero(u)
+    y = ifelse(hl & hu, lf + (uf - lf) * _hardsigmoid(z), _bounded(z, l, u))
+    return clamp(y, l, u)
+end
+
 """
     map_primal(method::ALMMethod, form::ALMFormulation, Z::AbstractMatrix)
     map_primal(bounds::AbstractBoundMap, form, Z)
@@ -217,6 +255,8 @@ map_primal(method::ALMMethod, form::ALMFormulation, Z::AbstractMatrix) =
 map_primal(::NoBoundMap, ::ALMFormulation, Z::AbstractMatrix) = Z
 map_primal(::SigmoidBoundMap, form::ALMFormulation, Z::AbstractMatrix) =
     _bounded.(Z, form.xlower, form.xupper)
+map_primal(::HardSigmoidBoundMap, form::ALMFormulation, Z::AbstractMatrix) =
+    _hardbounded.(Z, form.xlower, form.xupper)
 
 # Lower/upper clip for the multiplier of each row: λᵢ ≤ 0 needs a finite lower
 # bound, λᵢ ≥ 0 a finite upper bound (normal cone of [lᵢ, uᵢ]).
@@ -229,10 +269,17 @@ _dual_hi(u, M) = ifelse(isfinite(u), M, zero(M))
 Clip multipliers (L2OALM convention, see [`ALMFormulation`](@ref)) to the sign
 pattern of their row and to `[-max_dual, max_dual]`: rows without a finite
 upper bound get `λᵢ ≤ 0`, rows without a finite lower bound get `λᵢ ≥ 0`.
-This is the projection onto the dual cone, so it is idempotent.
+When the bound map enforces the variable bounds
+([`enforces_bounds`](@ref)), the multipliers of variable-bound rows are set to
+zero (the paper dualizes only `g` and `h`). This is the projection onto a
+closed convex subset of the dual cone, so it is idempotent.
 """
 function project_multipliers(method::ALMMethod, form::ALMFormulation, Λ::AbstractMatrix)
     M = convert(eltype(Λ), method.max_dual)
+    if enforces_bounds(method.bounds)
+        w = 1 .- form.bound      # 0 on variable-bound rows
+        return clamp.(Λ, w .* _dual_lo.(form.lower, M), w .* _dual_hi.(form.upper, M))
+    end
     return clamp.(Λ, _dual_lo.(form.lower, M), _dual_hi.(form.upper, M))
 end
 

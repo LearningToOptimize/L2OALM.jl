@@ -18,6 +18,8 @@ PHRAugmentation
 AbstractBoundMap
 NoBoundMap
 SigmoidBoundMap
+HardSigmoidBoundMap
+enforces_bounds
 ```
 
 ## Formulation and decomposition
