@@ -1,0 +1,31 @@
+# Contributing to L2OALM.jl
+
+Thanks for helping! Issues and pull requests are welcome.
+
+## Development setup
+
+```sh
+git clone https://github.com/LearningToOptimize/L2OALM.jl
+cd L2OALM.jl
+julia --project=test -e 'using Pkg; Pkg.instantiate()'   # Julia ≥ 1.11 reads [sources]
+JULIA_NUM_THREADS=2 julia --project=test test/runtests.jl
+julia --project=docs docs/make.jl                         # documentation
+```
+
+On Julia 1.10, add the unregistered dependencies first (see `.github/workflows/CI.yml`).
+
+## Guidelines
+
+  - **Theory first.** A new method or loss term cites its paper; the docs
+    Theory page states the optimization problem with the paper's equation
+    numbers, and code comments point to them ("eq. (n)").
+  - **Name every claim.** A mathematical property the code relies on or
+    promises gets a named testset in `test/test_claims.jl` (and a row in the
+    Theory table) with its assumptions.
+  - **Batch-first, array code.** The batch is the last dimension; losses use
+    broadcasts and reductions so they differentiate and run on GPU arrays.
+  - **Keep the core light.** ML frameworks, solvers and kernel backends are
+    weak dependencies with package extensions.
+  - **Format** with JuliaFormatter v1 (`using JuliaFormatter; format(".")`);
+    CI checks it.
+  - Small, focused commits; describe design choices in the pull request.
