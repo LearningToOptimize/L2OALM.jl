@@ -13,25 +13,7 @@ bm = BatchModel(
     ExaModel(core; prod = true),
     batchsize;
     config = BatchModelConfig(:viol_grad),
-)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">BatchModel{Matrix{Float64}, ExaModels.ExaModel{Float64, Vector{Float64}, ExaModelsKernelAbstractions.KAExtension{Float64, Vector{Float64}, @NamedTuple{jacbuffer::Vector{Float64}, jacsparsityi::Vector{Tuple{Tuple{Int64, Int64}, Int64}}, jacsparsityj::Vector{Tuple{Tuple{Int64, Int64}, Int64}}, jacptri::Vector{Int64}, jacptrj::Vector{Int64}, hessbuffer::Vector{Float64}, hesssparsityi::Vector{Tuple{Tuple{Int64, Int64}, Int64}}, hesssparsityj::Vector{Tuple{Tuple{Int64, Int64}, Int64}}, hessptri::Vector{Int64}, hessptrj::Vector{Int64}}, Vector{Tuple{Int64, Int64}}, Vector{Int64}, KernelAbstractions.CPU}, ExaModels.Objective{ExaModels.ObjectiveNull, ExaModels.SIMDFunction{ExaModels.Node2{typeof(+), ExaModels.Node2{typeof(+), ExaModels.Node1{typeof(abs2), ExaModels.Node2{typeof(-), ExaModels.Var{Int64}, ExaModels.ParameterNode{Int64}}}, ExaModels.Node1{typeof(abs2), ExaModels.Node2{typeof(-), ExaModels.Var{Int64}, ExaModels.ParameterNode{Int64}}}}, ExaModels.Node1{typeof(exp), ExaModels.Node2{typeof(/), ExaModels.Var{Int64}, Int64}}}, ExaModels.Compressor{Tuple{Int64, Int64, Int64}}, ExaModels.Compressor{Tuple{Int64, Int64, Int64}}}, UnitRange{Int64}}, ExaModels.ConstraintAug{ExaModels.Constraint{ExaModels.Constraint{ExaModels.ConstraintNull, ExaModels.SIMDFunction{ExaModels.Node2{typeof(+), ExaModels.Node2{typeof(+), ExaModels.Node1{typeof(abs2), ExaModels.Var{Int64}}, ExaModels.Node1{typeof(abs2), ExaModels.Var{Int64}}}, ExaModels.Node1{typeof(abs2), ExaModels.Var{Int64}}}, ExaModels.Compressor{Tuple{Int64, Int64, Int64}}, ExaModels.Compressor{Tuple{Int64, Int64, Int64}}}, UnitRange{Int64}, Int64}, ExaModels.SIMDFunction{ExaModels.Node2{typeof(-), ExaModels.Node2{typeof(*), ExaModels.Var{Int64}, ExaModels.Var{Int64}}, Float64}, ExaModels.Compressor{Tuple{Int64, Int64}}, ExaModels.Compressor{Tuple{Int64, Int64, Int64}}}, UnitRange{Int64}, Int64}, ExaModels.SIMDFunction{Pair{ExaModels.ParSource, ExaModels.Node1{typeof(sin), ExaModels.Var{Int64}}}, ExaModels.Compressor{Tuple{Int64}}, ExaModels.Compressor{Tuple{Int64}}}, UnitRange{Int64}, Tuple{Int64}}, Nothing}, ...} with max batch size = 32
-Wrapping:
-An ExaModel{Float64, Vector{Float64}, ...}
-
-  Problem name: Generic
-   All variables: ████████████████████ 3      All constraints: ████████████████████ 2     
-            free: ⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅ 0                 free: ⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅ 0     
-           lower: ⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅ 0                lower: ⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅ 0     
-           upper: ⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅ 0                upper: ██████████⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅ 1     
-         low/upp: ████████████████████ 3              low/upp: ⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅ 0     
-           fixed: ⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅ 0                fixed: ██████████⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅ 1     
-          infeas: ⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅ 0               infeas: ⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅ 0     
-            nnzh: (-66.67% sparsity)   10              linear: ⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅ 0     
-                                                    nonlinear: ████████████████████ 2     
-                                                         nnzj: (  0.00% sparsity)   6     
-                                                     lin_nnzj: (------% sparsity)         
-                                                     nln_nnzj: (  0.00% sparsity)   6     
-
-</code></pre><p>The formulation: rows are the two constraints followed by the three variables (bound rows).</p><pre><code class="language-julia hljs">form = ALMFormulation(bm)
+);</code></pre><p>The formulation: rows are the two constraints followed by the three variables (bound rows).</p><pre><code class="language-julia hljs">form = ALMFormulation(bm)
 (form.lower, form.upper)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">([-Inf, 0.0, -3.0, -3.0, -3.0], [4.0, 0.0, 3.0, 3.0, 3.0])</code></pre><h2 id="Losses-run-through-the-kernels"><a class="docs-heading-anchor" href="#Losses-run-through-the-kernels">Losses run through the kernels</a><a id="Losses-run-through-the-kernels-1"></a><a class="docs-heading-anchor-permalink" href="#Losses-run-through-the-kernels" title="Permalink"></a></h2><pre><code class="language-julia hljs">method = ALMMethod(; α = 2.0, ρmax = 1e3)
 rng = Random.Xoshiro(1)
 P = rand(rng, 2, batchsize)
@@ -50,7 +32,7 @@ trainer = ALMTrainer(
     Training.TrainState(dual, f64(pd), sd, Optimisers.Adam(1e-2)),
 )
 Ptrain = rand(rng, 2, 128)
-train!(
+L2OALM.train!(
     trainer,
     method,
     form,
@@ -71,4 +53,4 @@ mermaid.initialize({
     startOnLoad: true,
     theme: "neutral"
 });
-</script></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../qp/">« PDL on a parametric QP</a><a class="docs-footer-nextpage" href="../../api/">API reference »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.20.0 on <span class="colophon-date" title="Wednesday 25 November 2026 10:04">Wednesday 25 November 2026</span>. Using Julia version 1.13.4.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+</script></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../qp/">« PDL on a parametric QP</a><a class="docs-footer-nextpage" href="../../api/">API reference »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.20.0 on <span class="colophon-date" title="Wednesday 25 November 2026 21:06">Wednesday 25 November 2026</span>. Using Julia version 1.13.4.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>

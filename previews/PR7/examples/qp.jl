@@ -57,7 +57,7 @@ trainer = ALMTrainer(
 
 # ## Training (Algorithm 1)
 
-train!(
+L2OALM.train!(
     trainer,
     pipe,
     train_data;
