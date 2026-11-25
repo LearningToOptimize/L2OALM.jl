@@ -238,13 +238,19 @@ end
 
 """
     to_jump_duals(Λ)
-    from_jump_duals(Y)
 
 Convert between the L2OALM multiplier convention (`λ` in the normal cone of the
 row's box, see [`ALMFormulation`](@ref)) and the `JuMP.dual` convention used by
 `L2OCore.Prediction` (`y = -λ`, for both minimisation and maximisation).
 """
 to_jump_duals(Λ) = -Λ
+
+"""
+    from_jump_duals(Y)
+
+Inverse of [`to_jump_duals`](@ref): multipliers in the L2OALM convention from
+duals in the `JuMP.dual` convention (`λ = -y`).
+"""
 from_jump_duals(Y) = -Y
 
 # ---------------------------------------------------------------------------

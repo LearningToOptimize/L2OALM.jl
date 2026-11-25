@@ -61,7 +61,7 @@ end
 """
     ALMFormulation(bm::BatchNLPKernels.BatchModel)
 
-Formulation of an ExaModels problem for [`ALMMethod`](@ref): rows are the
+Formulation of an ExaModels problem for [`L2OALM.ALMMethod`](@ref): rows are the
 constraints `lcon ≤ c(x; θ) ≤ ucon` followed by the variable bounds
 `lvar ≤ x ≤ uvar`; all vectors live on the ExaModel's device.
 """
