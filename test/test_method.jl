@@ -1,4 +1,11 @@
 struct _OtherMethod <: L2OCore.AbstractPrimalMethod end
+
+# A method-agnostic add-on (the L2OCore hook used for derivative supervision).
+struct _ConstantTerm{M} <: L2OCore.AbstractMethodWrapper
+    inner::M
+    c::Float64
+end
+L2OCore.extra_loss(w::_ConstantTerm, pipe, inputs, output; kwargs...) = w.c
 L2OCore.supports(::_OtherMethod, ::L2OCore.ConvexQuadratic) = true
 
 @testset "construction and validation" begin
@@ -193,4 +200,17 @@ end
     Λ = randn(Random.Xoshiro(2), 4, 3)
     @test from_jump_duals(to_jump_duals(Λ)) == Λ
     @test to_jump_duals(Λ) == -Λ
+end
+
+@testset "WrapperComposes: L2OCore method wrappers compose with ALMMethod" begin
+    prob = ParametricProblem(qp_model())
+    inner = ALMMethod(; bounds = SigmoidBoundMap())
+    wpipe = L2OPipeline(prob, _ConstantTerm(inner, 0.25))
+    pipe = L2OPipeline(prob, inner)
+    rng = Random.Xoshiro(30)
+    P, out = randn(rng, 2, 3), randn(rng, 12, 3)
+    @test guarantees(wpipe.method) == guarantees(inner)
+    @test L2OCore.loss(wpipe, P, out; ρ = 2.0, proxy = identity) ≈
+          L2OCore.loss(pipe, P, out; ρ = 2.0) + 0.25
+    @test complete(wpipe, P, out).dual == complete(pipe, P, out).dual
 end
