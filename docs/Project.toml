@@ -17,7 +17,7 @@ Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 [sources]
 BatchNLPKernels = {url = "https://github.com/LearningToOptimize/BatchNLPKernels.jl", rev = "main"}
 L2OALM = {path = ".."}
-L2OCore = {url = "https://github.com/LearningToOptimize/LearningToOptimize.jl", rev = "ar/l2ocore-design", subdir = "lib/L2OCore"}
+L2OCore = {url = "https://github.com/LearningToOptimize/LearningToOptimize.jl", rev = "main", subdir = "lib/L2OCore"}
 
 [compat]
 Documenter = "1"

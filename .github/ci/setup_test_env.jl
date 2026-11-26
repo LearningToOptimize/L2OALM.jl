@@ -13,7 +13,7 @@ const UNREGISTERED = [
     PackageSpec(
         url = "https://github.com/LearningToOptimize/LearningToOptimize.jl",
         subdir = "lib/L2OCore",
-        rev = "ar/l2ocore-design",
+        rev = "main",
     ),
     PackageSpec(url = "https://github.com/LearningToOptimize/BatchNLPKernels.jl", rev = "main"),
 ]
