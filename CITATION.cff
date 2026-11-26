@@ -1,0 +1,30 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite the method paper below and the software."
+title: "L2OALM.jl: self-supervised primal-dual learning with an augmented Lagrangian"
+type: software
+authors:
+  - name: "LearningToOptimize.jl contributors"
+repository-code: "https://github.com/LearningToOptimize/L2OALM.jl"
+url: "https://LearningToOptimize.github.io/L2OALM.jl"
+license: MIT
+keywords:
+  - learning to optimize
+  - augmented Lagrangian
+  - primal-dual learning
+  - Julia
+preferred-citation:
+  type: conference-paper
+  title: "Self-Supervised Primal-Dual Learning for Constrained Optimization"
+  authors:
+    - family-names: "Park"
+      given-names: "Seonho"
+    - family-names: "Van Hentenryck"
+      given-names: "Pascal"
+  collection-title: "Proceedings of the AAAI Conference on Artificial Intelligence"
+  volume: 37
+  start: 4052
+  end: 4060
+  year: 2023
+  identifiers:
+    - type: other
+      value: "arXiv:2208.09046"

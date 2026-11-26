@@ -19,61 +19,38 @@ jobs:
     permissions: # needed to allow julia-actions/cache to proactively delete old caches that it has created
       actions: write
       contents: read
+      id-token: write # OIDC token for Codecov uploads
     strategy:
       fail-fast: false
       matrix:
         version:
-          - '1.10'
-          - '1.6'
-          - 'pre'
+          - '1.10' # LTS
+          - '1'    # latest release
         os:
           - ubuntu-latest
         arch:
           - x64
-          - x86
+    env:
+      JULIA_NUM_THREADS: 2
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: julia-actions/setup-julia@v2
         with:
           version: ${{ matrix.version }}
           arch: ${{ matrix.arch }}
       - uses: julia-actions/cache@v2
-      - uses: julia-actions/julia-buildpkg@v1
-      - uses: julia-actions/julia-runtest@v1
+      # L2OCore and BatchNLPKernels are not registered yet and Julia 1.10 ignores
+      # [sources]; the script builds the test environment from test/Project.toml
+      # and adds them by URL (and this package by path).
+      - name: Set up the test environment
+        run: julia --color=yes .github/ci/setup_test_env.jl test_env
+      - name: Run tests
+        run: julia --color=yes --project=test_env --code-coverage=user --check-bounds=yes test/runtests.jl
       - uses: julia-actions/julia-processcoverage@v1
-      - uses: codecov/codecov-action@v4
+        with:
+          directories: src,ext
+      - uses: codecov/codecov-action@v5
         with:
           files: lcov.info
-          token: ${{ secrets.CODECOV_TOKEN }}
+          use_oidc: true
           fail_ci_if_error: false
-  docs:
-    name: Documentation
-    runs-on: ubuntu-latest
-    permissions:
-      actions: write # needed to allow julia-actions/cache to proactively delete old caches that it has created
-      contents: write
-      statuses: write
-    steps:
-      - uses: actions/checkout@v4
-      - uses: julia-actions/setup-julia@v2
-        with:
-          version: '1'
-      - uses: julia-actions/cache@v2
-      - name: Configure doc environment
-        shell: julia --project=docs --color=yes {0}
-        run: |
-          using Pkg
-          Pkg.develop(PackageSpec(path=pwd()))
-          Pkg.instantiate()
-      - uses: julia-actions/julia-buildpkg@v1
-      - uses: julia-actions/julia-docdeploy@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}
-      - name: Run doctests
-        shell: julia --project=docs --color=yes {0}
-        run: |
-          using Documenter: DocMeta, doctest
-          using L2OALM
-          DocMeta.setdocmeta!(L2OALM, :DocTestSetup, :(using L2OALM); recursive=true)
-          doctest(L2OALM)

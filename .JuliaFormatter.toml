@@ -1,0 +1,4 @@
+style = "default"
+margin = 92
+always_for_in = false
+whitespace_typedefs = false
