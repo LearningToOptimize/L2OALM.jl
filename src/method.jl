@@ -110,7 +110,7 @@ enforces_bounds(::HardSigmoidBoundMap) = true
 """
     ALMMethod(; ρ_init = 1.0, ρmax = 1e4, α = 10.0, τ = 0.8, max_dual = 1e6,
               augmentation = PDLAugmentation(), bounds = NoBoundMap(),
-              dual_norm_eps = 1e-8)
+              dual_norm_eps = 1e-8, equality_scale = 1.0)
 
 Self-supervised primal-dual learning (PDL) with an augmented Lagrangian,
 Park & Van Hentenryck (AAAI 2023), as an `L2OCore.AbstractPrimalDualMethod`.
@@ -136,7 +136,10 @@ Hyper-parameters (paper notation):
     [`SigmoidBoundMap`](@ref) or [`HardSigmoidBoundMap`](@ref) (bounds enforced
     by the output map and not dualized, as in the paper);
   - `dual_norm_eps`: smoothing of the norms of eq. (7) so the loss is
-    differentiable when the prediction equals the target.
+    differentiable when the prediction equals the target;
+  - `equality_scale = s > 0`: equality rows use the penalty `s ρ` in the primal
+    loss and in the dual update (default `1`, the paper's single `ρ`); see
+    [`row_penalty`](@ref).
 
 Supported problem classes are `LinearConic` (box rows only),
 `ConvexQuadratic` and `SmoothNonlinear` (see `L2OCore.supports`). Training
@@ -160,6 +163,7 @@ struct ALMMethod{T<:Real,A<:AbstractAugmentation,B<:AbstractBoundMap} <:
     augmentation::A
     bounds::B
     dual_norm_eps::T
+    equality_scale::T
     function ALMMethod(
         ρ_init::T,
         ρmax::T,
@@ -169,6 +173,7 @@ struct ALMMethod{T<:Real,A<:AbstractAugmentation,B<:AbstractBoundMap} <:
         augmentation::A,
         bounds::B,
         dual_norm_eps::T,
+        equality_scale::T = one(T),
     ) where {T<:Real,A<:AbstractAugmentation,B<:AbstractBoundMap}
         ρ_init > 0 || throw(ArgumentError("ρ_init must be positive"))
         ρmax >= ρ_init || throw(ArgumentError("ρmax must be ≥ ρ_init"))
@@ -176,7 +181,18 @@ struct ALMMethod{T<:Real,A<:AbstractAugmentation,B<:AbstractBoundMap} <:
         0 < τ < 1 || throw(ArgumentError("τ must be in (0, 1)"))
         max_dual > 0 || throw(ArgumentError("max_dual must be positive"))
         dual_norm_eps >= 0 || throw(ArgumentError("dual_norm_eps must be ≥ 0"))
-        return new{T,A,B}(ρ_init, ρmax, α, τ, max_dual, augmentation, bounds, dual_norm_eps)
+        equality_scale > 0 || throw(ArgumentError("equality_scale must be positive"))
+        return new{T,A,B}(
+            ρ_init,
+            ρmax,
+            α,
+            τ,
+            max_dual,
+            augmentation,
+            bounds,
+            dual_norm_eps,
+            equality_scale,
+        )
     end
 end
 
@@ -189,8 +205,13 @@ function ALMMethod(;
     augmentation::AbstractAugmentation = PDLAugmentation(),
     bounds::AbstractBoundMap = NoBoundMap(),
     dual_norm_eps::Real = 1e-8,
+    equality_scale::Real = 1,
 )
-    T = float(promote_type(typeof.((ρ_init, ρmax, α, τ, max_dual, dual_norm_eps))...))
+    T = float(
+        promote_type(
+            typeof.((ρ_init, ρmax, α, τ, max_dual, dual_norm_eps, equality_scale))...,
+        ),
+    )
     return ALMMethod(
         T(ρ_init),
         T(ρmax),
@@ -200,6 +221,7 @@ function ALMMethod(;
         augmentation,
         bounds,
         T(dual_norm_eps),
+        T(equality_scale),
     )
 end
 

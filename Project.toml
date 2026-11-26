@@ -12,10 +12,11 @@ Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 [weakdeps]
 BatchNLPKernels = "7145f916-0e30-4c9d-93a2-b32b6056125d"
 Lux = "b2108857-7c20-44ae-9111-449ecde12c47"
+Optimisers = "3bd65402-5787-11e9-1adc-39752487f4e2"
 
 [extensions]
 L2OALMBatchNLPKernelsExt = "BatchNLPKernels"
-L2OALMLuxExt = "Lux"
+L2OALMLuxExt = ["Lux", "Optimisers"]
 
 [sources]
 L2OCore = {url = "https://github.com/LearningToOptimize/LearningToOptimize.jl", rev = "main", subdir = "lib/L2OCore"}
@@ -26,5 +27,6 @@ ChainRulesCore = "1.20"
 JuMP = "1.15"
 L2OCore = "0.1"
 Lux = "1"
+Optimisers = "0.3, 0.4"
 Random = "1"
 julia = "1.10"

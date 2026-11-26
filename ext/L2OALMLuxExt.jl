@@ -9,11 +9,12 @@ using L2OALM:
     ALMTrainer,
     dual_loss,
     dual_target,
+    instance_violations,
     map_primal,
     primal_loss,
-    update_penalty,
-    violation_measure
+    update_penalty
 using Lux: Lux
+using Optimisers: Optimisers
 using Lux.Training: TrainState, single_train_step!
 
 const LuxALMTrainer = ALMTrainer{<:TrainState,<:TrainState}
@@ -39,6 +40,18 @@ function _ordered_batches(N::Int, batchsize::Int)
     return [i:min(i + batchsize - 1, N) for i = 1:batchsize:N]
 end
 
+# Learning-rate decay of App. C.3: multiply the phase's rate by `decay` when the
+# validation loss exceeds the best value of the phase so far.
+function _maybe_decay!(tr, phase::Symbol, ts::TrainState, val, best, decay)
+    val <= best && return val
+    key = Symbol(phase, :_eta)
+    eta = get!(() -> ts.optimizer.eta, tr.options, key) * decay
+    tr.options[key] = eta
+    tr.options[Symbol(phase, :_decays)] = get(tr.options, Symbol(phase, :_decays), 0) + 1
+    Optimisers.adjust!(ts.optimizer_state, eta)
+    return best
+end
+
 function L2OALM.train!(
     tr::LuxALMTrainer,
     method::ALMMethod,
@@ -51,7 +64,12 @@ function L2OALM.train!(
     rng::Random.AbstractRNG = Random.default_rng(),
     ad = Lux.AutoZygote(),
     callback = (trainer, entry) -> nothing,
+    violation_reduction = maximum,
+    validation::Union{Nothing,AbstractMatrix} = nothing,
+    lr_decay::Real = 1,
 )
+    0 < lr_decay <= 1 || throw(ArgumentError("lr_decay must be in (0, 1]"))
+    decaying = validation !== nothing && lr_decay < 1
     T = typeof(tr.ρ)
     N = size(inputs, 2)
     for _ = 1:outer_iterations
@@ -66,6 +84,8 @@ function L2OALM.train!(
         end
         pts = tr.primal
         primal_mean = zero(T)
+        best = T(Inf)
+        Λval = decaying ? _apply(dual_ts, validation) : nothing
         for epoch = 1:primal_epochs
             acc, nb = zero(T), 0
             for idx in _batches(rng, N, batchsize)
@@ -76,16 +96,26 @@ function L2OALM.train!(
                 nb += 1
             end
             epoch == primal_epochs && (primal_mean = acc / max(nb, 1))
+            if decaying
+                Xv = map_primal(method, form, _apply(pts, validation))
+                val = T(primal_loss(method, form, validation, Xv, Λval; ρ = ρ))
+                best = _maybe_decay!(tr, :primal, pts, val, best, lr_decay)
+            end
         end
         tr.primal = pts
 
-        # 2. Violation measure v_k of eq. (8) over the whole training set.
-        v = zero(T)
+        # 2. Violation measure v_k of eq. (8) over the whole training set
+        #    (maximum of the per-instance violations, or another reduction).
+        vs = T[]
         for idx in _ordered_batches(N, batchsize)
             P = inputs[:, idx]
             X = map_primal(method, form, _apply(pts, P))
-            v = max(v, T(violation_measure(method, form, P, X, _apply(dual_ts, P); ρ = ρ)))
+            append!(
+                vs,
+                Array(instance_violations(method, form, P, X, _apply(dual_ts, P); ρ = ρ)),
+            )
         end
+        v = isempty(vs) ? zero(T) : T(violation_reduction(vs))
 
         # 3. Frozen copy λ_k of the dual proxy.
         frozen = (dual_ts.model, deepcopy(dual_ts.parameters), deepcopy(dual_ts.states))
@@ -97,6 +127,13 @@ function L2OALM.train!(
         end
         dts = dual_ts
         dual_mean = zero(T)
+        best = T(Inf)
+        Tval = if decaying
+            Xv = map_primal(method, form, _apply(pts, validation))
+            dual_target(method, form, validation, Xv, _apply(frozen..., validation); ρ = ρ)
+        else
+            nothing
+        end
         for epoch = 1:dual_epochs
             acc, nb = zero(T), 0
             for idx in _batches(rng, N, batchsize)
@@ -108,6 +145,10 @@ function L2OALM.train!(
                 nb += 1
             end
             epoch == dual_epochs && (dual_mean = acc / max(nb, 1))
+            if decaying
+                val = T(dual_loss(method, form, _apply(dts, validation), Tval))
+                best = _maybe_decay!(tr, :dual, dts, val, best, lr_decay)
+            end
         end
         tr.dual = dts
 

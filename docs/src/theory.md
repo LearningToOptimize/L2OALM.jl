@@ -277,8 +277,19 @@ theorem about PDL. Measure feasibility and optimality gaps with
     the paper always enforces ``\mathbf Y`` by the architecture (see above).
     Use a bound-enforcing map to match it.
   - **Learning-rate decay** of App. C.3 (×0.99 when the validation loss
-    exceeds its best value) is not built into [`L2OALM.train!`](@ref); the `callback`
-    keyword can adjust the optimizer between outer iterations.
+    exceeds its best value) is optional: `L2OALM.train!(...; validation, lr_decay = 0.99)`.
+    The best value is tracked per phase and per outer iteration (the losses
+    change with ``\rho`` and ``\lambda_k``), and the decayed rate carries over.
+  - **Optional per-row penalties** (`equality_scale = s`): equality rows use
+    ``s\rho`` in (B2)/(B3) and in (B4); with ``s = 1`` (default) this is the
+    paper's single ``\rho``. The properties above hold for any positive
+    per-row penalty, since (B-NC) holds row by row for any ``\rho_i > 0``;
+    in particular KKT points remain fixed points of (B4) and stationary
+    points of (B2)/(B3), and the box forms still reduce to (5) and (6).
+  - **Optional violation reduction** (`violation_reduction`): ``v_k`` is the
+    maximum of the per-instance violations ([`instance_violations`](@ref)) as in
+    (8) by default; a mean is less sensitive to a few hard instances. Only the
+    penalty schedule changes; none of the properties above depends on it.
   - **Norm in (7)**: Euclidean (the paper allows any norm).
   - **Eq. (8)**: ``\lambda_{k,j}`` for ``j \in \mathcal G`` read as
     ``\mu_{k,j}`` (see above).
