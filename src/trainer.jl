@@ -10,6 +10,8 @@ Mutable training state of PDL (Algorithm 1 of Park & Van Hentenryck, 2023):
   - `ρ`: current penalty; `v_prev`: violation measure of the previous outer
     iteration (`Inf` before the first one); `iteration`: completed outer
     iterations;
+  - `options`: free-form state of the training loop that must survive between
+    calls (e.g. the current learning rates when `lr_decay` is used);
   - `history`: one `NamedTuple` per outer iteration with fields `iteration`,
     `ρ` (penalty used in that iteration), `violation` (eq. (8)), `primal_loss`
     and `dual_loss` (means over the last epoch of each phase).
@@ -29,6 +31,7 @@ mutable struct ALMTrainer{P,D,T<:Real}
             Tuple{Int,T,T,T,T},
         },
     }
+    options::Dict{Symbol,Any}
 end
 
 function ALMTrainer(primal, dual; ρ::Real = 1.0)
@@ -43,6 +46,7 @@ function ALMTrainer(primal, dual; ρ::Real = 1.0)
             (:iteration, :ρ, :violation, :primal_loss, :dual_loss),
             Tuple{Int,T,T,T,T},
         }[],
+        Dict{Symbol,Any}(),
     )
 end
 
@@ -64,8 +68,22 @@ place. Each outer iteration `k`:
  5. updates `ρ` with [`update_penalty`](@ref) (eq. (9)).
 
 Methods are provided by extensions: load `Lux` for `Lux.Training.TrainState`
-proxies (keywords `outer_iterations`, `primal_epochs`, `dual_epochs`,
-`batchsize`, `rng`, `ad`, `callback`; see the package guide).
+proxies. Keywords of the Lux method:
+
+  - `outer_iterations` (`K`), `primal_epochs`, `dual_epochs` (`L`, in epochs),
+    `batchsize`, `rng`, `ad` (an ADTypes backend, default `AutoZygote()`),
+    `callback(trainer, entry)` after each outer iteration;
+  - `violation_reduction = maximum`: reduction over the per-instance violations
+    ([`instance_violations`](@ref)) giving `v_k`; `maximum` is eq. (8), `mean`
+    is less sensitive to a few hard instances;
+  - `validation = nothing`, `lr_decay = 1`: with a validation parameter matrix
+    and `lr_decay < 1`, after every epoch of a phase the phase loss is
+    evaluated on `validation` and the learning rate of that phase is
+    multiplied by `lr_decay` whenever the loss exceeds the best value of the
+    phase so far (App. C.3 of the paper uses `0.99`). The current rates are
+    kept in `trainer.options[:primal_eta]`/`[:dual_eta]` and the number of
+    decays in `[:primal_decays]`/`[:dual_decays]`; the optimiser must have an
+    `eta` field (Adam, Descent, …).
 
 `train!` is not exported, because the name would clash with `Flux.train!`;
 call it as `L2OALM.train!`, or through the generic

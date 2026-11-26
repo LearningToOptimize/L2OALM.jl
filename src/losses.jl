@@ -9,11 +9,24 @@
 _mean(v) = sum(v) / length(v)
 
 """
+    row_penalty(method::ALMMethod, form::ALMFormulation, ρ) -> num_rows vector
+
+Penalty of each row: `ρ` for inequality and bound rows, `s ρ` for equality rows
+with `s = method.equality_scale`. With the default `s = 1` every row uses the
+paper's single `ρ`. A positive per-row penalty keeps the method's properties: KKT points stay
+fixed points of the multiplier update and stationary points of the losses,
+row by row (see the Theory page).
+"""
+row_penalty(method::ALMMethod, form::ALMFormulation, ρ::Real) =
+    ρ .* (1 .+ (method.equality_scale - 1) .* form.equality)
+
+"""
     augmentation_term(aug::AbstractAugmentation, form, C, Λ, ρ) -> 1 × B
 
 Per-instance multiplier and penalty term of the primal loss for constraint
-values `C` (`num_rows × B`) and multipliers `Λ` (same shape, already projected
-with [`project_multipliers`](@ref)). See [`PDLAugmentation`](@ref) and
+values `C` (`num_rows × B`), multipliers `Λ` (same shape, already projected
+with [`project_multipliers`](@ref)) and penalty `ρ`, a scalar or a per-row
+vector ([`row_penalty`](@ref)); implementations must broadcast over `ρ`. See [`PDLAugmentation`](@ref) and
 [`PHRAugmentation`](@ref).
 """
 function augmentation_term(::PDLAugmentation, form::ALMFormulation, C, Λ, ρ)
@@ -25,13 +38,13 @@ function augmentation_term(::PDLAugmentation, form::ALMFormulation, C, Λ, ρ)
         max.(.-Λ, 0) .* (_finite_or_zero.(l) .- C)
     # ν(g) = max(g, 0)², ν(h) = h² of eq. (5), row-wise.
     V = max.(l .- C, 0) .+ max.(C .- u, 0)
-    return sum(lin .+ (ρ / 2) .* V .^ 2; dims = 1)
+    return sum(lin .+ (ρ ./ 2) .* V .^ 2; dims = 1)
 end
 
 function augmentation_term(::PHRAugmentation, form::ALMFormulation, C, Λ, ρ)
     Z = C .+ Λ ./ ρ
     D = max.(form.lower .- Z, 0) .+ max.(Z .- form.upper, 0)   # dist(Z, [l, u])
-    return sum((ρ / 2) .* D .^ 2 .- Λ .^ 2 ./ (2ρ); dims = 1)
+    return sum((ρ ./ 2) .* D .^ 2 .- Λ .^ 2 ./ (2 .* ρ); dims = 1)
 end
 
 """
@@ -56,7 +69,7 @@ function primal_loss(method::ALMMethod, form::ALMFormulation, P, X, Λ; ρ::Real
     Λp = project_multipliers(method, form, Λ)
     C = L2OCore.constraint_values(ev, X, P)
     f = form.sense .* L2OCore.batch_objective(ev, X, P)
-    A = augmentation_term(method.augmentation, form, C, Λp, T(ρ))
+    A = augmentation_term(method.augmentation, form, C, Λp, row_penalty(method, form, T(ρ)))
     return _mean(vec(A) .+ f)
 end
 
@@ -84,7 +97,8 @@ function dual_target(method::ALMMethod, form::ALMFormulation, P, X, Λ; ρ::Real
     T = eltype(X)
     Λp = project_multipliers(method, form, Λ)
     C = L2OCore.constraint_values(form.evaluator, X, P)
-    return project_multipliers(method, form, Λp .+ T(ρ) .* _sigma(form, C, Λp, T(ρ)))
+    R = row_penalty(method, form, T(ρ))
+    return project_multipliers(method, form, Λp .+ R .* _sigma(form, C, Λp, R))
 end
 
 """
@@ -122,11 +136,50 @@ the maximum over the whole training set; take the maximum of the batch values.
 It is zero exactly when `x` is feasible and complementary with `λ`.
 """
 function violation_measure(method::ALMMethod, form::ALMFormulation, P, X, Λ; ρ::Real)
+    v = instance_violations(method, form, P, X, Λ; ρ = ρ)
+    return isempty(v) ? zero(eltype(X)) : maximum(v)
+end
+
+"""
+    instance_violations(method::ALMMethod, form::ALMFormulation, P, X, Λ; ρ) -> B vector
+
+Per-instance violation `‖σ(x_k, λ_k)‖_∞` of eq. (8) (before the maximum over
+the training set). [`violation_measure`](@ref) is its maximum; `train!`'s
+`violation_reduction` keyword chooses another reduction (e.g. the mean).
+"""
+function instance_violations(method::ALMMethod, form::ALMFormulation, P, X, Λ; ρ::Real)
     T = eltype(X)
     Λp = project_multipliers(method, form, Λ)
     C = L2OCore.constraint_values(form.evaluator, X, P)
-    S = _sigma(form, C, Λp, T(ρ))
-    return isempty(S) ? zero(T) : maximum(abs, S)
+    S = _sigma(form, C, Λp, row_penalty(method, form, T(ρ)))
+    return size(S, 1) == 0 ? fill!(similar(S, size(S, 2)), 0) :
+           vec(maximum(abs.(S); dims = 1))
+end
+
+"""
+    violation_report(form::ALMFormulation, P, X) -> NamedTuple
+
+Per-instance quality of primal points `X` for any formulation (also those
+without a JuMP problem, e.g. ExaModels): `objective` (in the model's sense),
+`max_equality_violation`, `max_inequality_violation` (inequality and bound
+rows) and `max_violation`, each a length-`B` vector on the formulation's
+device. For JuMP pipelines it agrees with `L2OCore.evaluate` (test
+`ViolationReportMatchesEvaluate`).
+"""
+function violation_report(form::ALMFormulation, P, X)
+    ev = form.evaluator
+    C = L2OCore.constraint_values(ev, X, P)
+    V = max.(form.lower .- C, 0) .+ max.(C .- form.upper, 0)
+    _colmax(M) =
+        size(M, 1) == 0 ? fill!(similar(M, size(M, 2)), 0) : vec(maximum(M; dims = 1))
+    eqv = _colmax(form.equality .* V)
+    ineqv = _colmax((1 .- form.equality) .* V)
+    return (
+        objective = L2OCore.batch_objective(ev, X, P),
+        max_equality_violation = eqv,
+        max_inequality_violation = ineqv,
+        max_violation = max.(eqv, ineqv),
+    )
 end
 
 """
@@ -141,7 +194,7 @@ function update_penalty(method::ALMMethod, ρ::Real, v::Real, v_prev::Real)
     return v > method.τ * v_prev ? max(ρ, min(method.α * ρ, method.ρmax)) : ρ
 end
 
-for f in (:primal_loss, :dual_target, :violation_measure)
+for f in (:primal_loss, :dual_target, :violation_measure, :instance_violations)
     @eval $f(pipe::L2OPipeline, P, X, Λ; ρ::Real) =
         $f(pipe.method, ALMFormulation(pipe), P, X, Λ; ρ = ρ)
 end

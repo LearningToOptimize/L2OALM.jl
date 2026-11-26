@@ -81,6 +81,13 @@ For ExaModels problems and GPU evaluation also add
    evaluate(pipe, P, pred)                               # objective, violations
    ```
 
+Options of `train!` beyond the paper's defaults: `violation_reduction = mean`
+(penalty schedule driven by the mean instead of the maximum violation), and
+`validation = Pval, lr_decay = 0.99` (the paper's learning-rate decay on a
+validation set). `ALMMethod(; equality_scale = s)` uses the penalty `s ρ` on
+equality rows. For formulations without a JuMP problem (ExaModels),
+[`violation_report`](@ref) gives objectives and violations per instance.
+
 `trainer.history` holds, per outer iteration, the penalty used, the violation
 measure of eq. (8) and the mean losses of the last epoch of each phase.
 

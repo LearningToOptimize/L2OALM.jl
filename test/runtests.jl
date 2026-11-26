@@ -27,6 +27,9 @@ include("problems.jl")
     @testset "BatchNLPKernels evaluator" begin
         include("test_batchnlp.jl")
     end
+    @testset "extras: penalties per row, reports, schedules" begin
+        include("test_extras.jl")
+    end
     @testset "code quality" begin
         include("test_quality.jl")
     end

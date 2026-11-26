@@ -42,6 +42,9 @@ augmentation_term
 dual_target
 dual_loss
 violation_measure
+instance_violations
+violation_report
+row_penalty
 update_penalty
 ```
 
