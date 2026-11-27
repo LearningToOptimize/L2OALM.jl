@@ -6,34 +6,20 @@ CurrentModule = L2OALM
 
 ## Place in the ecosystem
 
-```mermaid
-flowchart TB
-    subgraph core["L2OCore (problems, pipelines, evaluators)"]
-        PP["ParametricProblem (JuMP)"]
-        EV["AbstractEvaluator: MatrixEvaluator, JuMPEvaluator"]
-        PL["L2OPipeline(problem, method)"]
-        EVAL["evaluate: objectives, violations"]
-    end
-    subgraph alm["L2OALM"]
-        M["ALMMethod <: AbstractPrimalDualMethod"]
-        F["ALMFormulation = evaluator + row bounds"]
-        L["losses (5)-(9), map_primal, project_multipliers"]
-        T["ALMTrainer, L2OALM.train!"]
-    end
-    subgraph ext["package extensions (weak deps)"]
-        LUX["L2OALMLuxExt: Algorithm 1 for Lux TrainStates"]
-        BNK["L2OALMBatchNLPKernelsExt: BatchModelEvaluator (ExaModels kernels, CPU/GPU)"]
-    end
-    PP --> PL
-    M --> PL
-    PL --> F
-    EV --> F
-    BNK --> F
-    F --> L
-    L --> T
-    LUX --> T
-    PL --> EVAL
-```
+| layer | component | role | feeds |
+|:--|:--|:--|:--|
+| L2OCore | `ParametricProblem` (JuMP) | the problem with its layouts | `L2OPipeline` |
+| L2OCore | `L2OPipeline(problem, method)` | checks support, holds the evaluator | `ALMFormulation`, `evaluate` |
+| L2OCore | `AbstractEvaluator`: `MatrixEvaluator`, `JuMPEvaluator` | batched objective and constraint values | `ALMFormulation` |
+| L2OCore | `evaluate` | objectives and violations of a prediction | the user |
+| L2OALM | `ALMMethod <: AbstractPrimalDualMethod` | the method's hyper-parameters | `L2OPipeline` |
+| L2OALM | `ALMFormulation` | an evaluator plus row bounds | the losses |
+| L2OALM | losses (B2)–(B7), `map_primal`, `project_multipliers` | primal loss, dual target, dual loss, penalty rule | `ALMTrainer` |
+| L2OALM | `ALMTrainer`, `L2OALM.train!` | Algorithm 1 | trained proxies |
+| extension | `L2OALMLuxExt` | Algorithm 1 for Lux `TrainState`s | `ALMTrainer` |
+| extension | `L2OALMBatchNLPKernelsExt`: `BatchModelEvaluator` | ExaModels kernels on CPU or GPU | `ALMFormulation` |
+
+Extensions are loaded with their weak dependencies (Lux, BatchNLPKernels).
 
 Sibling packages: [LearningToOptimize.jl](https://github.com/LearningToOptimize/LearningToOptimize.jl)
 (L2OCore, datasets, penalty method),
