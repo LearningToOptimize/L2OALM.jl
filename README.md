@@ -1,33 +1,22 @@
+<div align="center">
+
 # L2OALM.jl
 
-[![CI](https://github.com/LearningToOptimize/L2OALM.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/LearningToOptimize/L2OALM.jl/actions/workflows/CI.yml?query=branch%3Amain)
-[![Docs: dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://LearningToOptimize.github.io/L2OALM.jl/dev/)
-[![Codecov](https://codecov.io/gh/LearningToOptimize/L2OALM.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/LearningToOptimize/L2OALM.jl)
-[![Aqua QA](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
-[![JET](https://img.shields.io/badge/%F0%9F%9B%A9%EF%B8%8F_tested_with-JET.jl-233f9a)](https://github.com/aviatesk/JET.jl)
+<p><sub><b>PRIMAL PROXY · DUAL PROXY · AUGMENTED LAGRANGIAN</b></sub></p>
 
-**Self-supervised primal-dual learning with an augmented Lagrangian.**
-L2OALM learns a *primal proxy* `x̂(p)` and a *dual proxy* `λ̂(p)` for a family
-of constrained optimization problems `min f(x; p) s.t. l ≤ c(x; p) ≤ u`
-without solving any instance: the primal proxy minimizes the augmented
-Lagrangian for the multipliers predicted by the dual proxy, and the dual proxy
-learns the augmented-Lagrangian multiplier update, with the penalty increased
-whenever the violation stalls. This is PDL, Park & Van Hentenryck,
-[*Self-Supervised Primal-Dual Learning for Constrained Optimization*](https://arxiv.org/abs/2208.09046),
-AAAI 2023. Problems can be stated in JuMP or in ExaModels; with ExaModels the
-batch is evaluated by GPU-capable kernels.
+[![CI](https://github.com/LearningToOptimize/L2OALM.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/LearningToOptimize/L2OALM.jl/actions/workflows/CI.yml?query=branch%3Amain) [![Docs: dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://LearningToOptimize.github.io/L2OALM.jl/dev/) [![Codecov](https://codecov.io/gh/LearningToOptimize/L2OALM.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/LearningToOptimize/L2OALM.jl) [![Aqua QA](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl) [![JET](https://img.shields.io/badge/%F0%9F%9B%A9%EF%B8%8F_tested_with-JET.jl-233f9a)](https://github.com/aviatesk/JET.jl)
 
-```mermaid
-flowchart LR
-    P["parameters p"] --> PP["primal proxy x̂(p)"]
-    P --> DP["dual proxy λ̂(p)"]
-    PP --> PL["primal loss (5)"]
-    DP -- frozen --> PL
-    PP -- frozen --> DT["dual target (6)"]
-    DP -- frozen copy --> DT
-    DT --> DL["dual loss (7)"]
-    PL --> R["violation (8) → penalty rule (9)"]
-```
+</div>
+
+<p align="center">
+  <picture>
+    <source media="(max-width: 640px)" srcset="docs/src/assets/diagrams/l2oalm--primal-dual-compact.svg">
+    <img src="docs/src/assets/diagrams/l2oalm--primal-dual.svg" width="760" alt="Self-supervised primal-dual learning in three panels. Primal phase, dual proxy frozen: the parameters p enter the primal proxy, which outputs x-hat; with lambda equal to the frozen dual proxy output, the primal loss L_p (B2) is s f of x-hat plus the sum over rows of lambda_i plus times c_i minus u_i plus lambda_i minus times l_i minus c_i, plus rho over 2 times the sum of squared violations v_i; a dashed primal step updates the primal proxy. Dual phase, primal proxy frozen: p enters the dual proxy, which outputs lambda-hat; a frozen copy gives lambda^k; with x-hat frozen, the target t (B4) is the projection Pi_M of lambda^k plus rho sigma of x-hat and lambda^k, and the dual loss L_d (B5) is the smoothed norm of lambda-hat minus t on the inequality rows plus that on the equality rows; a dashed dual step updates the dual proxy. Outer iteration k (Algorithm 1): primal phase, violation v_k (8), copy lambda^k, dual phase, then rho is replaced by the minimum of alpha rho and rho max if v_k exceeds tau v_k minus 1 (B7); then k increases by one.">
+  </picture>
+</p>
+<p align="center"><i>The primal proxy minimizes the augmented Lagrangian for the frozen dual proxy; the dual proxy learns the multiplier step computed from a frozen copy of itself; the outer iteration alternates the two phases and raises the penalty when the violation stalls.</i></p>
+
+**Self-supervised primal-dual learning with an augmented Lagrangian.** L2OALM learns a *primal proxy* `x̂(p)` and a *dual proxy* `λ̂(p)` for a family of constrained optimization problems `min f(x; p) s.t. l ≤ c(x; p) ≤ u` without solving any instance: the primal proxy minimizes the augmented Lagrangian for the multipliers predicted by the dual proxy, and the dual proxy learns the augmented-Lagrangian multiplier update, with the penalty increased whenever the violation stalls. This is PDL, Park & Van Hentenryck, [*Self-Supervised Primal-Dual Learning for Constrained Optimization*](https://arxiv.org/abs/2208.09046), AAAI 2023. Problems can be stated in JuMP or in ExaModels; with ExaModels the batch is evaluated by GPU-capable kernels.
 
 ## Installation
 
