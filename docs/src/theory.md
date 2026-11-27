@@ -243,8 +243,11 @@ The following facts follow directly from the formulas above.
     (B3): for (B2), at a feasible ``x^\star`` the penalty gradient vanishes
     and the multiplier term has gradient ``\nabla c^\top \lambda^\star``, so
     the gradient is the KKT residual; for (B3) the gradient is
-    ``s\nabla f + \nabla c^\top(\lambda^\star + \rho\sigma) =
-    s\nabla f + \nabla c^\top \lambda^\star``.
+
+    ```math
+    s\nabla f + \nabla c^\top(\lambda^\star + \rho\sigma) = s\nabla f + \nabla c^\top \lambda^\star .
+    ```
+
   - **Penalty schedule.** With ``\alpha > 1``, ``\rho`` never decreases and
     never exceeds ``\max(\rho_0, \rho_{\max})``.
   - **Multiplier signs.** Dual targets and completed multipliers have the sign
@@ -314,6 +317,6 @@ theorem about PDL. Measure feasibility and optimality gaps with
     Lagrangian, and ``\rho`` grows geometrically per epoch. It would be another
     `AbstractPrimalDualMethod` on the same interface (it needs a per-instance
     inner solver, so it does not reuse [`L2OALM.train!`](@ref)).
-  - "Analytical dual" PDL for AC-OPF: use ``\mathrm{clip}(\lambdâ + \rho\,\sigma)``
+  - "Analytical dual" PDL for AC-OPF: use ``\mathrm{clip}(\hat\lambda + \rho\,\sigma)``
     inside the primal loss. Its gradient is the one of (B3), so it is available
     as `augmentation = PHRAugmentation()`; see [Design](@ref).
