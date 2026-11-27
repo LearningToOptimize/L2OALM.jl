@@ -38,8 +38,7 @@ on any Julia version from 1.10:
 
 ```julia
 using Pkg
-Pkg.add(url = "https://github.com/LearningToOptimize/LearningToOptimize.jl",
-        subdir = "lib/L2OCore", rev = "ar/l2ocore-design")
+Pkg.add(url = "https://github.com/LearningToOptimize/LearningToOptimize.jl", subdir = "lib/L2OCore")
 Pkg.add(url = "https://github.com/LearningToOptimize/L2OALM.jl")
 ```
 
